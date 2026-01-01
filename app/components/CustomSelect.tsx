@@ -269,6 +269,10 @@ export function CustomSelect({
                 ]
                   .filter(Boolean)
                   .join(" ")}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
                 onMouseEnter={() => setActiveIndex(i)}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") {
@@ -303,7 +307,9 @@ export function CustomSelect({
                     if (!multiple) return;
                   }
                 }}
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   commit(i);
                   if (!multiple) return;
                 }}

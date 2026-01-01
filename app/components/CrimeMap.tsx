@@ -339,7 +339,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
   const pulseRafRef = useRef<number | null>(null);
-  const filtersRef = useRef<IncidentFilters>({});
+  const makeDefaultFilters = (): IncidentFilters => {
+    const endMs = Date.now();
+    const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
+    return { startMs, endMs, hideRoadTests: true };
+  };
+  const filtersRef = useRef<IncidentFilters>(makeDefaultFilters());
   const [loadingCount, setLoadingCount] = useState(0);
   const [mobilePanel, setMobilePanel] = useState<
     "filters" | "incidents" | null
@@ -354,11 +359,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const [useIcons, setUseIcons] = useState(true);
   const [currentStyleId, setCurrentStyleId] =
     useState<MapTilerStyleId>(styleId);
-  const [filters, setFilters] = useState<IncidentFilters>(() => {
-    const endMs = Date.now();
-    const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-    return { startMs, endMs, hideRoadTests: true };
-  });
+  const [filters, setFilters] = useState<IncidentFilters>(
+    () => filtersRef.current
+  );
   const [incidents, setIncidents] = useState<IncidentFeatureCollection>({
     type: "FeatureCollection",
     features: [],
@@ -406,6 +409,91 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     });
 
     mapRef.current = map;
+
+    const setQueryArea = () => {
+      const m = mapRef.current;
+      if (!m) return;
+      if (!m.isStyleLoaded()) return;
+      const src = m.getSource("query-area") as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (!src) return;
+
+      const b = m.getBounds();
+      const w = b.getWest();
+      const s = b.getSouth();
+      const e = b.getEast();
+      const n = b.getNorth();
+
+      src.setData({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [w, s],
+                  [e, s],
+                  [e, n],
+                  [w, n],
+                  [w, s],
+                ],
+              ],
+            },
+          },
+        ],
+      });
+    };
+
+    const refresh = async () => {
+      const m = mapRef.current;
+      if (!m) return;
+      if (!m.isStyleLoaded()) return;
+      if (!m.getSource("incidents")) return;
+      if (!m.getSource("incidents-raw")) return;
+      setQueryArea();
+
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+
+      const b = m.getBounds();
+      const bbox = {
+        west: b.getWest(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        north: b.getNorth(),
+      };
+
+      startLoading();
+      try {
+        const data = await fetchIncidentsGeoJSON({
+          bbox,
+          filters: filtersRef.current,
+          signal: ac.signal,
+        });
+
+        const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
+        const srcRaw = m.getSource("incidents-raw") as maplibregl.GeoJSONSource;
+        const next = decorateIncidents(data, filtersRef.current);
+        src.setData(next);
+        srcRaw.setData(next);
+        setIncidents(next);
+      } catch (e) {
+        if (!isAbortError(e)) {
+          setIncidents((prev) => prev);
+        }
+      } finally {
+        stopLoading();
+      }
+    };
+
+    const onMoveEnd = () => {
+      void refresh();
+    };
 
     map.on("load", () => {
       stopOnce();
@@ -743,95 +831,49 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       };
 
       pulseRafRef.current = requestAnimationFrame(tick);
+      const tryInitialRefresh = (tries: number) => {
+        const c = map.getContainer();
+        if (c.clientWidth <= 0 || c.clientHeight <= 0) {
+          if (tries >= 30) {
+            void refresh();
+            return;
+          }
+          requestAnimationFrame(() => tryInitialRefresh(tries + 1));
+          return;
+        }
+        if (
+          !map.isStyleLoaded() ||
+          !map.getSource("incidents") ||
+          !map.getSource("incidents-raw")
+        ) {
+          if (tries >= 30) {
+            void refresh();
+            return;
+          }
+          requestAnimationFrame(() => tryInitialRefresh(tries + 1));
+          return;
+        }
+        map.resize();
+        const b = map.getBounds();
+        const ok =
+          Number.isFinite(b.getWest()) &&
+          Number.isFinite(b.getSouth()) &&
+          Number.isFinite(b.getEast()) &&
+          Number.isFinite(b.getNorth());
+        if (!ok) {
+          if (tries >= 30) {
+            void refresh();
+            return;
+          }
+          requestAnimationFrame(() => tryInitialRefresh(tries + 1));
+          return;
+        }
+        void refresh();
+      };
+      tryInitialRefresh(0);
     });
 
-    const setQueryArea = () => {
-      const m = mapRef.current;
-      if (!m) return;
-      if (!m.isStyleLoaded()) return;
-      const src = m.getSource("query-area") as
-        | maplibregl.GeoJSONSource
-        | undefined;
-      if (!src) return;
-
-      const b = m.getBounds();
-      const w = b.getWest();
-      const s = b.getSouth();
-      const e = b.getEast();
-      const n = b.getNorth();
-
-      src.setData({
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "Polygon",
-              coordinates: [
-                [
-                  [w, s],
-                  [e, s],
-                  [e, n],
-                  [w, n],
-                  [w, s],
-                ],
-              ],
-            },
-          },
-        ],
-      });
-    };
-
-    const refresh = async () => {
-      const m = mapRef.current;
-      if (!m) return;
-      if (!m.isStyleLoaded()) return;
-      if (!m.getSource("incidents")) return;
-      if (!m.getSource("incidents-raw")) return;
-      setQueryArea();
-
-      abortRef.current?.abort();
-      const ac = new AbortController();
-      abortRef.current = ac;
-
-      const b = m.getBounds();
-      const bbox = {
-        west: b.getWest(),
-        south: b.getSouth(),
-        east: b.getEast(),
-        north: b.getNorth(),
-      };
-
-      startLoading();
-      try {
-        const data = await fetchIncidentsGeoJSON({
-          bbox,
-          filters: filtersRef.current,
-          signal: ac.signal,
-        });
-
-        const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
-        const srcRaw = m.getSource("incidents-raw") as maplibregl.GeoJSONSource;
-        const next = decorateIncidents(data, filtersRef.current);
-        src.setData(next);
-        srcRaw.setData(next);
-        setIncidents(next);
-      } catch (e) {
-        if (!isAbortError(e)) {
-          setIncidents((prev) => prev);
-        }
-      } finally {
-        stopLoading();
-      }
-    };
-
-    const onMoveEnd = () => {
-      void refresh();
-    };
-
     map.on("moveend", onMoveEnd);
-    map.on("load", onMoveEnd);
 
     return () => {
       stopOnce();
