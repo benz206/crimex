@@ -1,7 +1,23 @@
-import type { BBox, IncidentFeatureCollection, IncidentFilters } from "@/app/lib/types";
+import type {
+  BBox,
+  IncidentFeatureCollection,
+  IncidentFilters,
+  IncidentProperties,
+} from "@/app/lib/types";
 
-const DEFAULT_ENDPOINT =
-  "https://services2.arcgis.com/o1LYr96CpFkfsDJS/arcgis/rest/services/Crime_Map/FeatureServer/0/query";
+export const ARCGIS_CRIME_LAYER_URL =
+  "https://services2.arcgis.com/o1LYr96CpFkfsDJS/arcgis/rest/services/Crime_Map/FeatureServer/0";
+
+type ArcGISFormat = "json" | "geojson" | "pbf";
+type ArcGISQueryPath = "query" | "queryBins";
+type ArcGISParamValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Record<string, unknown>
+  | Array<unknown>;
 
 function assertFinite(n: number, name: string) {
   if (!Number.isFinite(n)) throw new Error(`${name} must be a finite number`);
@@ -27,17 +43,46 @@ function escapeSqlString(value: string) {
   return value.replaceAll("'", "''");
 }
 
+function formatTorontoSqlTimestamp(ms: number) {
+  assertFinite(ms, "ms");
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) throw new Error("Invalid date");
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = dtf.formatToParts(d);
+  const get = (t: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === t)?.value ?? "";
+  const y = get("year");
+  const mo = get("month");
+  const da = get("day");
+  const h = get("hour");
+  const mi = get("minute");
+  const s = get("second");
+  if (![y, mo, da, h, mi, s].every(Boolean)) throw new Error("Invalid date");
+  return `timestamp '${y}-${mo}-${da} ${h}:${mi}:${s}'`;
+}
+
 export function buildIncidentWhere(filters: IncidentFilters): string {
   const clauses: string[] = ["1=1"];
 
-  if (filters.startMs != null) {
-    assertFinite(filters.startMs, "startMs");
-    clauses.push(`DATE >= ${Math.floor(filters.startMs)}`);
-  }
-
-  if (filters.endMs != null) {
-    assertFinite(filters.endMs, "endMs");
-    clauses.push(`DATE <= ${Math.floor(filters.endMs)}`);
+  if (filters.startMs != null && filters.endMs != null) {
+    clauses.push(
+      `DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND ${formatTorontoSqlTimestamp(
+        filters.endMs,
+      )}`,
+    );
+  } else if (filters.startMs != null) {
+    clauses.push(`DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND CURRENT_TIMESTAMP`);
+  } else if (filters.endMs != null) {
+    clauses.push(`DATE <= ${formatTorontoSqlTimestamp(filters.endMs)}`);
   }
 
   if (filters.city) {
@@ -51,44 +96,116 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
   return clauses.join(" AND ");
 }
 
+function normalizeFeatureLayerBaseUrl(url: string) {
+  return url.replace(/\/(query|queryBins)\/?$/i, "");
+}
+
+function joinUrl(base: string, path: string) {
+  const b = base.replace(/\/+$/, "");
+  const p = path.replace(/^\/+/, "");
+  return `${b}/${p}`;
+}
+
+function encodeArcGISParams(params: Record<string, ArcGISParamValue>) {
+  const out = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v == null) continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      out.set(k, String(v));
+      continue;
+    }
+    out.set(k, JSON.stringify(v));
+  }
+  return out;
+}
+
+async function fetchArcGIS(url: string, format: ArcGISFormat, signal?: AbortSignal) {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`ArcGIS request failed: ${res.status}`);
+  if (format === "pbf") return new Uint8Array(await res.arrayBuffer());
+  return (await res.json()) as unknown;
+}
+
+export class ArcGISFeatureLayerClient {
+  readonly baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = normalizeFeatureLayerBaseUrl(baseUrl);
+  }
+
+  url(path: ArcGISQueryPath) {
+    return joinUrl(this.baseUrl, path);
+  }
+
+  async query<T = unknown>(input: {
+    path?: "query";
+    format?: ArcGISFormat;
+    params: Record<string, ArcGISParamValue>;
+    signal?: AbortSignal;
+  }): Promise<T | Uint8Array> {
+    const format = input.format ?? "json";
+    const url = `${this.url(input.path ?? "query")}?${encodeArcGISParams({
+      f: format,
+      ...input.params,
+    }).toString()}`;
+    return (await fetchArcGIS(url, format, input.signal)) as T | Uint8Array;
+  }
+
+  async queryBins<T = unknown>(input: {
+    format?: Exclude<ArcGISFormat, "geojson">;
+    params: Record<string, ArcGISParamValue>;
+    signal?: AbortSignal;
+  }): Promise<T | Uint8Array> {
+    const format = input.format ?? "json";
+    const url = `${this.url("queryBins")}?${encodeArcGISParams({
+      f: format,
+      ...input.params,
+    }).toString()}`;
+    return (await fetchArcGIS(url, format, input.signal)) as T | Uint8Array;
+  }
+}
+
+export const arcgisCrimeLayer = new ArcGISFeatureLayerClient(ARCGIS_CRIME_LAYER_URL);
+
 type QueryCommon = {
   where: string;
   bbox?: BBox;
   outFields: string;
   orderByFields?: string;
-  endpoint?: string;
+  client?: ArcGISFeatureLayerClient;
+  returnGeometry: boolean;
   signal?: AbortSignal;
 };
 
-function buildBaseParams(input: QueryCommon) {
-  const params = new URLSearchParams();
-  params.set("where", input.where);
-  params.set("outFields", input.outFields);
-  params.set("returnGeometry", "true");
-  params.set("outSR", "4326");
-  params.set("f", "json");
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
 
-  if (input.orderByFields) params.set("orderByFields", input.orderByFields);
+function buildQueryParams(input: QueryCommon) {
+  const params: Record<string, ArcGISParamValue> = {
+    where: input.where,
+    outFields: input.outFields,
+    returnGeometry: input.returnGeometry,
+  };
+
+  if (input.orderByFields) params.orderByFields = input.orderByFields;
 
   if (input.bbox) {
     const bb = normalizeBBox(input.bbox);
-    params.set("geometry", `${bb.west},${bb.south},${bb.east},${bb.north}`);
-    params.set("geometryType", "esriGeometryEnvelope");
-    params.set("inSR", "4326");
-    params.set("spatialRel", "esriSpatialRelIntersects");
+    params.geometry = `${bb.west},${bb.south},${bb.east},${bb.north}`;
+    params.geometryType = "esriGeometryEnvelope";
+    params.inSR = 4326;
+    params.spatialRel = "esriSpatialRelIntersects";
   }
+
+  if (input.returnGeometry || input.bbox) params.outSR = 4326;
 
   return params;
 }
 
-async function fetchJson(url: string, signal?: AbortSignal) {
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`ArcGIS request failed: ${res.status}`);
-  return (await res.json()) as any;
-}
-
-function esriJsonToGeoJSON(data: any): IncidentFeatureCollection {
-  const features = Array.isArray(data?.features) ? data.features : [];
+function esriJsonToGeoJSON(data: unknown): IncidentFeatureCollection {
+  const featsUnknown = isRecord(data) ? data.features : undefined;
+  const features = Array.isArray(featsUnknown) ? featsUnknown : [];
 
   const out: IncidentFeatureCollection = {
     type: "FeatureCollection",
@@ -96,16 +213,18 @@ function esriJsonToGeoJSON(data: any): IncidentFeatureCollection {
   };
 
   for (const f of features) {
-    const a = f?.attributes;
-    const g = f?.geometry;
-    const x = g?.x;
-    const y = g?.y;
-    if (!a || typeof x !== "number" || typeof y !== "number") continue;
+    if (!isRecord(f)) continue;
+    const a = isRecord(f.attributes) ? f.attributes : null;
+    const g = isRecord(f.geometry) ? f.geometry : null;
+    const x = g ? g.x : undefined;
+    const y = g ? g.y : undefined;
+    const oid = a ? a.OBJECTID : undefined;
+    if (!a || typeof oid !== "number" || typeof x !== "number" || typeof y !== "number") continue;
 
     out.features.push({
       type: "Feature",
       geometry: { type: "Point", coordinates: [x, y] },
-      properties: a,
+      properties: a as unknown as IncidentProperties,
     });
   }
 
@@ -117,39 +236,47 @@ type GeoJSONQueryResult = {
   exceeded: boolean;
 };
 
-async function tryQueryGeoJSON(input: QueryCommon & { offset: number; count: number }): Promise<GeoJSONQueryResult | null> {
-  const endpoint = input.endpoint ?? DEFAULT_ENDPOINT;
-  const params = buildBaseParams(input);
-  params.set("f", "geojson");
-  params.set("resultOffset", String(input.offset));
-  params.set("resultRecordCount", String(input.count));
-  params.set("returnGeometry", "true");
-  params.set("returnZ", "false");
-  params.set("returnM", "false");
+async function tryQueryGeoJSON(
+  input: QueryCommon & { offset: number; count: number },
+): Promise<GeoJSONQueryResult | null> {
+  const client = input.client ?? arcgisCrimeLayer;
+  const data = (await client.query({
+    format: "geojson",
+    params: {
+      ...buildQueryParams(input),
+      resultOffset: input.offset,
+      resultRecordCount: input.count,
+      returnGeometry: true,
+      returnZ: false,
+      returnM: false,
+    },
+    signal: input.signal,
+  })) as unknown;
 
-  const url = `${endpoint}?${params.toString()}`;
-  const data = await fetchJson(url, input.signal);
+  if (!isRecord(data) || data.type !== "FeatureCollection") return null;
+  const props = isRecord(data.properties) ? data.properties : null;
+  const exceededRaw = (props?.exceededTransferLimit ?? data.exceededTransferLimit) as unknown;
+  const exceeded = Boolean(exceededRaw);
 
-  if (data?.type !== "FeatureCollection") return null;
-  const exceeded = Boolean(data?.properties?.exceededTransferLimit ?? data?.exceededTransferLimit);
-
-  return { geojson: data as IncidentFeatureCollection, exceeded };
+  return { geojson: data as unknown as IncidentFeatureCollection, exceeded };
 }
 
 async function queryEsriJson(input: QueryCommon & { offset: number; count: number }): Promise<GeoJSONQueryResult> {
-  const endpoint = input.endpoint ?? DEFAULT_ENDPOINT;
-  const params = buildBaseParams(input);
-  params.set("f", "json");
-  params.set("resultOffset", String(input.offset));
-  params.set("resultRecordCount", String(input.count));
-  params.set("returnGeometry", "true");
-  params.set("returnZ", "false");
-  params.set("returnM", "false");
-
-  const url = `${endpoint}?${params.toString()}`;
-  const data = await fetchJson(url, input.signal);
+  const client = input.client ?? arcgisCrimeLayer;
+  const data = (await client.query({
+    format: "json",
+    params: {
+      ...buildQueryParams(input),
+      resultOffset: input.offset,
+      resultRecordCount: input.count,
+      returnGeometry: true,
+      returnZ: false,
+      returnM: false,
+    },
+    signal: input.signal,
+  })) as unknown;
   const geojson = esriJsonToGeoJSON(data);
-  const exceeded = Boolean(data?.exceededTransferLimit);
+  const exceeded = Boolean(isRecord(data) ? data.exceededTransferLimit : false);
   return { geojson, exceeded };
 }
 
@@ -157,13 +284,14 @@ export async function fetchIncidentsGeoJSON(input: {
   bbox?: BBox;
   filters?: IncidentFilters;
   outFields?: string[];
-  endpoint?: string;
+  baseUrl?: string;
   signal?: AbortSignal;
   pageSize?: number;
 }): Promise<IncidentFeatureCollection> {
   const where = buildIncidentWhere(input.filters ?? {});
   const outFields = (input.outFields ?? ["OBJECTID", "DATE", "CITY", "DESCRIPTION"]).join(",");
   const pageSize = Math.max(1, Math.min(5000, input.pageSize ?? 2000));
+  const client = input.baseUrl ? new ArcGISFeatureLayerClient(input.baseUrl) : arcgisCrimeLayer;
 
   const merged: IncidentFeatureCollection = { type: "FeatureCollection", features: [] };
   let offset = 0;
@@ -171,11 +299,12 @@ export async function fetchIncidentsGeoJSON(input: {
 
   while (exceeded) {
     const common: QueryCommon = {
-      endpoint: input.endpoint,
+      client,
       where,
       bbox: input.bbox,
       outFields,
       orderByFields: "OBJECTID ASC",
+      returnGeometry: true,
       signal: input.signal,
     };
 
@@ -200,25 +329,29 @@ export async function fetchIncidentsGeoJSON(input: {
 export async function fetchDistinctValues(input: {
   field: "CITY" | "DESCRIPTION";
   filters?: IncidentFilters;
-  endpoint?: string;
+  baseUrl?: string;
   signal?: AbortSignal;
 }): Promise<string[]> {
-  const endpoint = input.endpoint ?? DEFAULT_ENDPOINT;
+  const client = input.baseUrl ? new ArcGISFeatureLayerClient(input.baseUrl) : arcgisCrimeLayer;
   const where = buildIncidentWhere(input.filters ?? {});
 
-  const params = new URLSearchParams();
-  params.set("where", where);
-  params.set("returnDistinctValues", "true");
-  params.set("returnGeometry", "false");
-  params.set("outFields", input.field);
-  params.set("f", "json");
-
-  const url = `${endpoint}?${params.toString()}`;
-  const data = await fetchJson(url, input.signal);
-  const feats = Array.isArray(data?.features) ? data.features : [];
+  const data = (await client.query({
+    format: "json",
+    params: {
+      where,
+      returnDistinctValues: true,
+      returnGeometry: false,
+      outFields: input.field,
+    },
+    signal: input.signal,
+  })) as unknown;
+  const featsUnknown = isRecord(data) ? data.features : undefined;
+  const feats = Array.isArray(featsUnknown) ? featsUnknown : [];
   const out = new Set<string>();
   for (const f of feats) {
-    const v = f?.attributes?.[input.field];
+    if (!isRecord(f)) continue;
+    const a = isRecord(f.attributes) ? f.attributes : null;
+    const v = a ? a[input.field] : undefined;
     if (typeof v === "string" && v.trim()) out.add(v.trim());
   }
   return Array.from(out).sort((a, b) => a.localeCompare(b));
