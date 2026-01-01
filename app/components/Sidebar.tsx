@@ -18,14 +18,19 @@ export function Sidebar({ items, onPick }: Props) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="px-4 pt-4 pb-3">
+        <div className="pb-2 md:hidden">
+          <div className="mx-auto h-1 w-10 rounded-full bg-white/20" />
+        </div>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-white/90">Incidents</div>
-            <div className="mt-0.5 text-[11px] leading-4 text-white/55">
+            <div className="text-[15px] font-semibold text-white/95">
+              Incidents
+            </div>
+            <div className="mt-1 text-[11px] leading-4 text-white/60">
               Most recent first
             </div>
           </div>
-          <div className="shrink-0 rounded-full bg-white/6 px-2.5 py-1 text-xs text-white/70 ring-1 ring-white/10">
+          <div className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
             {items.length}
           </div>
         </div>
@@ -40,10 +45,10 @@ export function Sidebar({ items, onPick }: Props) {
               className="ui-card"
               onClick={() => onPick(f)}
             >
-              <div className="text-sm font-semibold text-white/90">
+              <div className="text-[14px] font-semibold text-white/95">
                 {f.properties.DESCRIPTION ?? "Incident"}
               </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/55">
+              <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/65">
                 <span className="truncate">{f.properties.CITY ?? ""}</span>
                 <span className="shrink-0">
                   {formatDate(f.properties.DATE)}

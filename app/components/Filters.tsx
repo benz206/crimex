@@ -81,10 +81,10 @@ export function Filters({
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-white/90">
+          <div className="text-[15px] font-semibold text-white/95">
             Halton Crime
           </div>
-          <div className="mt-0.5 text-[11px] leading-4 text-white/55">
+          <div className="mt-1 text-[11px] leading-4 text-white/60">
             Filter incidents and switch between clusters and heatmap density.
           </div>
         </div>
@@ -108,7 +108,7 @@ export function Filters({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="ui-title">View</div>
-          <div className="mt-0.5 text-[11px] leading-4 text-white/55">
+          <div className="mt-1 text-[11px] leading-4 text-white/60">
             Heatmap shows density; the outline shows the current data window.
           </div>
         </div>
@@ -124,9 +124,9 @@ export function Filters({
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="text-[11px] text-white/55">Low</div>
-        <div className="h-2 flex-1 rounded-full ring-1 ring-white/10 bg-gradient-to-r from-transparent via-[rgba(80,200,255,0.75)] to-[rgba(255,110,160,0.95)]" />
-        <div className="text-[11px] text-white/55">High</div>
+        <div className="text-[11px] text-white/60">Low</div>
+        <div className="h-2 flex-1 rounded-full ring-1 ring-white/10 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.45)] to-[rgba(255,255,255,0.9)]" />
+        <div className="text-[11px] text-white/60">High</div>
       </div>
 
       <div className="relative">
@@ -149,7 +149,7 @@ export function Filters({
               <button
                 key={r.id}
                 type="button"
-                className="w-full px-3 py-2.5 text-left text-sm text-white/90 hover:bg-white/8"
+                className="w-full px-3 py-2.5 text-left text-sm text-white/95 hover:bg-white/10"
                 onClick={() => {
                   onSearchPick(r.center, r.label);
                   setQuery(r.label);

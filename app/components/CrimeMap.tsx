@@ -613,7 +613,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="ui-panel absolute top-3 left-3 z-10 w-[340px] p-4 text-white">
+      <div className="ui-panel absolute top-3 left-3 right-3 z-10 w-auto max-w-[360px] p-4 md:right-auto md:w-[360px]">
         <Filters
           styleId={currentStyleId}
           onStyleId={(v) => setCurrentStyleId(v)}
@@ -627,7 +627,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         />
       </div>
 
-      <div className="ui-panel absolute top-3 right-3 z-10 h-[calc(100%-24px)] w-[380px] overflow-hidden">
+      <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 h-[42dvh] w-auto overflow-hidden md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-24px)] md:w-[400px]">
         <Sidebar items={sortedForSidebar} onPick={flyToIncident} />
       </div>
       <div ref={containerRef} className="h-full w-full" />
