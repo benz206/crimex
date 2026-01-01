@@ -98,11 +98,11 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
     (x) => typeof x === "string" && x.trim(),
   );
   if (descriptions.length === 1) {
-    clauses.push(`DESCRIPTION = '${escapeSqlString(descriptions[0]!.trim())}'`);
+    clauses.push(`DESCRIPTION = '${escapeSqlString(descriptions[0]!)}'`);
   } else if (descriptions.length > 1) {
     clauses.push(
       `DESCRIPTION IN (${descriptions
-        .map((d) => `'${escapeSqlString(d.trim())}'`)
+        .map((d) => `'${escapeSqlString(d)}'`)
         .join(",")})`,
     );
   }

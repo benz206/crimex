@@ -35,9 +35,12 @@ export function HeatmapSettingsPanel({
     onSettings({ ...settings, ...patch });
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/55" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-3 md:p-6"
+      onClick={onClose}
+    >
       <div
-        className="ui-panel absolute top-3 right-3 bottom-3 left-3 overflow-hidden md:top-12 md:right-12 md:bottom-auto md:left-auto md:w-[420px]"
+        className="ui-panel w-full max-w-[760px] overflow-hidden md:max-h-[85dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
@@ -80,7 +83,7 @@ export function HeatmapSettingsPanel({
         </div>
         <div className="ui-divider mx-4" />
 
-        <div className="h-[calc(100%-64px)] overflow-auto p-4">
+        <div className="max-h-[calc(85dvh-64px)] overflow-auto p-4">
           <div className="flex flex-col gap-3">
             <div className="ui-card">
               <div className="flex items-center justify-between gap-3">

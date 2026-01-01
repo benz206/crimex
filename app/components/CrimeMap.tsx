@@ -559,7 +559,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "icon-opacity": 0.95,
           },
         },
-        "points"
+        beforeLabels
       );
 
       map.addLayer(
@@ -622,7 +622,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "icon-opacity": 0.95,
           },
         },
-        "points-raw"
+        beforeLabels
       );
 
       map.addLayer(
