@@ -17,17 +17,27 @@ function formatDate(ms?: number) {
 export function Sidebar({ items, onPick }: Props) {
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="px-4 pt-4 pb-2 text-xs font-semibold tracking-wide text-white/80">
-        Incidents
-        <span className="ml-2 font-normal text-white/50">{items.length}</span>
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-white/90">Incidents</div>
+            <div className="mt-0.5 text-[11px] leading-4 text-white/55">
+              Most recent first
+            </div>
+          </div>
+          <div className="shrink-0 rounded-full bg-white/6 px-2.5 py-1 text-xs text-white/70 ring-1 ring-white/10">
+            {items.length}
+          </div>
+        </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
+      <div className="ui-divider mx-4" />
+      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-3">
         <div className="flex flex-col gap-2">
           {items.map((f) => (
             <button
               key={String(f.properties.OBJECTID)}
               type="button"
-              className="rounded-xl bg-white/5 px-3 py-2 text-left ring-1 ring-white/10 hover:bg-white/8"
+              className="ui-card"
               onClick={() => onPick(f)}
             >
               <div className="text-sm font-semibold text-white/90">

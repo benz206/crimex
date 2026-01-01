@@ -82,6 +82,35 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         clusterRadius: 52,
       });
 
+      map.addSource("query-area", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
+
+      map.addLayer({
+        id: "query-area-fill",
+        type: "fill",
+        source: "query-area",
+        paint: {
+          "fill-color": "rgba(46,229,157,0.10)",
+          "fill-opacity": 0.9,
+        },
+      });
+
+      map.addLayer({
+        id: "query-area-outline",
+        type: "line",
+        source: "query-area",
+        paint: {
+          "line-color": "rgba(46,229,157,0.65)",
+          "line-width": 2,
+          "line-blur": 0.2,
+        },
+      });
+
       map.addLayer({
         id: "clusters",
         type: "circle",
@@ -183,13 +212,52 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       });
 
       map.setLayoutProperty("heatmap", "visibility", "none");
+      map.setLayoutProperty("query-area-fill", "visibility", "none");
+      map.setLayoutProperty("query-area-outline", "visibility", "none");
     });
+
+    const setQueryArea = () => {
+      const m = mapRef.current;
+      if (!m) return;
+      if (!m.isStyleLoaded()) return;
+      const src = m.getSource("query-area") as maplibregl.GeoJSONSource | undefined;
+      if (!src) return;
+
+      const b = m.getBounds();
+      const w = b.getWest();
+      const s = b.getSouth();
+      const e = b.getEast();
+      const n = b.getNorth();
+
+      src.setData({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [w, s],
+                  [e, s],
+                  [e, n],
+                  [w, n],
+                  [w, s],
+                ],
+              ],
+            },
+          },
+        ],
+      });
+    };
 
     const refresh = async () => {
       const m = mapRef.current;
       if (!m) return;
       if (!m.isStyleLoaded()) return;
       if (!m.getSource("incidents")) return;
+      setQueryArea();
 
       abortRef.current?.abort();
       const ac = new AbortController();
@@ -241,6 +309,16 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       if (!m.getLayer("heatmap")) return;
       m.setLayoutProperty(
         "heatmap",
+        "visibility",
+        heatmapEnabled ? "visible" : "none"
+      );
+      m.setLayoutProperty(
+        "query-area-fill",
+        "visibility",
+        heatmapEnabled ? "visible" : "none"
+      );
+      m.setLayoutProperty(
+        "query-area-outline",
         "visibility",
         heatmapEnabled ? "visible" : "none"
       );
@@ -475,20 +553,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-full bg-black/70 px-3 py-2 text-xs text-white/90 backdrop-blur">
-        <button
-          type="button"
-          className="rounded-full bg-white/10 px-3 py-1 hover:bg-white/15"
-          onClick={() => setHeatmapEnabled((v) => !v)}
-        >
-          {heatmapEnabled ? "Heatmap: On" : "Heatmap: Off"}
-        </button>
-      </div>
-
-      <div className="absolute top-3 left-3 z-10 mt-12 w-[320px] rounded-2xl bg-black/60 p-3 text-white backdrop-blur ring-1 ring-white/10">
+      <div className="ui-panel absolute top-3 left-3 z-10 w-[340px] p-4 text-white">
         <Filters
           styleId={currentStyleId}
           onStyleId={(v) => setCurrentStyleId(v)}
+          heatmapEnabled={heatmapEnabled}
+          onHeatmapEnabled={setHeatmapEnabled}
           filters={filters}
           onFilters={setFilters}
           cities={cities}
@@ -497,7 +567,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         />
       </div>
 
-      <div className="absolute top-3 right-3 z-10 h-[calc(100%-24px)] w-[360px] overflow-hidden rounded-2xl bg-black/55 backdrop-blur ring-1 ring-white/10">
+      <div className="ui-panel absolute top-3 right-3 z-10 h-[calc(100%-24px)] w-[380px] overflow-hidden">
         <Sidebar items={sortedForSidebar} onPick={flyToIncident} />
       </div>
       <div ref={containerRef} className="h-full w-full" />

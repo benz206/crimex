@@ -1,11 +1,18 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0f14;
+  --foreground: #e8edf6;
+  --panel: rgba(12, 17, 27, 0.76);
+  --panel-strong: rgba(12, 17, 27, 0.92);
+  --stroke: rgba(255, 255, 255, 0.1);
+  --stroke-strong: rgba(255, 255, 255, 0.16);
+  --muted: rgba(232, 237, 246, 0.64);
+  --muted-2: rgba(232, 237, 246, 0.48);
+  --accent: #2ee59d;
+  --accent-2: #50c8ff;
+  --danger: #ff6ea0;
 }
 
 @theme inline {
@@ -15,15 +22,117 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI",
+    Roboto, Arial, sans-serif;
+}
+
+@layer components {
+  .ui-panel {
+    @apply rounded-2xl ring-1 backdrop-blur;
+    background: var(--panel);
+    ring-color: var(--stroke);
+  }
+
+  .ui-panel-strong {
+    @apply rounded-2xl ring-1 backdrop-blur;
+    background: var(--panel-strong);
+    ring-color: var(--stroke);
+  }
+
+  .ui-title {
+    @apply text-xs font-semibold tracking-wide;
+    color: rgba(232, 237, 246, 0.86);
+  }
+
+  .ui-label {
+    @apply text-[11px] font-medium;
+    color: var(--muted-2);
+  }
+
+  .ui-input {
+    @apply h-10 w-full rounded-xl px-3 text-sm outline-none ring-1;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(232, 237, 246, 0.92);
+    ring-color: var(--stroke);
+  }
+
+  .ui-input:focus {
+    ring-color: var(--stroke-strong);
+  }
+
+  .ui-select {
+    @apply h-10 w-full rounded-xl px-3 text-sm outline-none ring-1;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(232, 237, 246, 0.92);
+    ring-color: var(--stroke);
+  }
+
+  .ui-btn {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium outline-none ring-1;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(232, 237, 246, 0.92);
+    ring-color: var(--stroke);
+  }
+
+  .ui-btn:hover {
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .ui-btn-primary {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold;
+    background: rgba(46, 229, 157, 0.16);
+    color: rgba(232, 237, 246, 0.95);
+    box-shadow: 0 0 0 1px rgba(46, 229, 157, 0.22) inset;
+  }
+
+  .ui-btn-primary:hover {
+    background: rgba(46, 229, 157, 0.2);
+  }
+
+  .ui-card {
+    @apply rounded-xl px-3 py-2 text-left ring-1;
+    background: rgba(255, 255, 255, 0.04);
+    ring-color: var(--stroke);
+  }
+
+  .ui-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .ui-divider {
+    @apply h-px w-full;
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.maplibregl-ctrl-group {
+  background: rgba(12, 17, 27, 0.86) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+}
+
+.maplibregl-ctrl button {
+  filter: invert(1) saturate(0) brightness(1.25);
+}
+
+.maplibregl-popup-content {
+  background: rgba(12, 17, 27, 0.92) !important;
+  color: rgba(232, 237, 246, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55) !important;
+  padding: 10px 10px !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: rgba(12, 17, 27, 0.92) !important;
+  border-bottom-color: rgba(12, 17, 27, 0.92) !important;
+}
+
+.maplibregl-popup-close-button {
+  color: rgba(232, 237, 246, 0.72) !important;
+  padding: 6px 8px !important;
 }

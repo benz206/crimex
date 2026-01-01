@@ -356,5 +356,3 @@ export async function fetchDistinctValues(input: {
   }
   return Array.from(out).sort((a, b) => a.localeCompare(b));
 }
-
-

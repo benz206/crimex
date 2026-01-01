@@ -12,6 +12,8 @@ import type { IncidentFilters } from "@/app/lib/types";
 type Props = {
   styleId: MapTilerStyleId;
   onStyleId: (v: MapTilerStyleId) => void;
+  heatmapEnabled: boolean;
+  onHeatmapEnabled: (v: boolean) => void;
   filters: IncidentFilters;
   onFilters: (next: IncidentFilters) => void;
   cities: string[];
@@ -22,6 +24,8 @@ type Props = {
 export function Filters({
   styleId,
   onStyleId,
+  heatmapEnabled,
+  onHeatmapEnabled,
   filters,
   onFilters,
   cities,
@@ -74,18 +78,62 @@ export function Filters({
   }, [query, maptilerKey]);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold tracking-wide text-white/80">
-          Filters
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white/90">
+            Halton Crime
+          </div>
+          <div className="mt-0.5 text-[11px] leading-4 text-white/55">
+            Filter incidents and switch between clusters and heatmap density.
+          </div>
         </div>
+        <button
+          type="button"
+          className="ui-btn shrink-0"
+          onClick={() => {
+            const endMs = Date.now();
+            const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
+            onFilters({ startMs, endMs });
+            setQuery("");
+            setOpen(false);
+          }}
+        >
+          Reset
+        </button>
+      </div>
+
+      <div className="ui-divider" />
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="ui-title">View</div>
+          <div className="mt-0.5 text-[11px] leading-4 text-white/55">
+            Heatmap shows density; the outline shows the current data window.
+          </div>
+        </div>
+        <button
+          type="button"
+          className={
+            heatmapEnabled ? "ui-btn-primary shrink-0" : "ui-btn shrink-0"
+          }
+          onClick={() => onHeatmapEnabled(!heatmapEnabled)}
+        >
+          {heatmapEnabled ? "Heatmap On" : "Heatmap Off"}
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="text-[11px] text-white/55">Low</div>
+        <div className="h-2 flex-1 rounded-full ring-1 ring-white/10 bg-gradient-to-r from-transparent via-[rgba(80,200,255,0.75)] to-[rgba(255,110,160,0.95)]" />
+        <div className="text-[11px] text-white/55">High</div>
       </div>
 
       <div className="relative">
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] text-white/60">Search</span>
+          <span className="ui-label">Search</span>
           <input
-            className="h-9 w-full rounded-lg bg-white/10 px-3 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/40"
+            className="ui-input placeholder:text-white/35"
             value={query}
             placeholder="Search Halton address/place"
             onChange={(e) => {
@@ -96,12 +144,12 @@ export function Filters({
           />
         </label>
         {open && results.length > 0 && (
-          <div className="absolute z-10 mt-2 w-full overflow-hidden rounded-xl bg-black/90 ring-1 ring-white/10">
+          <div className="ui-panel-strong absolute z-10 mt-2 w-full overflow-hidden">
             {results.map((r) => (
               <button
                 key={r.id}
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
+                className="w-full px-3 py-2.5 text-left text-sm text-white/90 hover:bg-white/8"
                 onClick={() => {
                   onSearchPick(r.center, r.label);
                   setQuery(r.label);
@@ -116,18 +164,14 @@ export function Filters({
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-[11px] text-white/60">Basemap</span>
+        <span className="ui-label">Basemap</span>
         <select
-          className="h-9 rounded-lg bg-white/10 px-3 text-sm text-white outline-none ring-1 ring-white/10"
+          className="ui-select"
           value={String(styleId)}
           onChange={(e) => onStyleId(e.target.value)}
         >
           {STYLE_CHOICES.map((s) => (
-            <option
-              key={String(s.id)}
-              value={String(s.id)}
-              className="text-black"
-            >
+            <option key={String(s.id)} value={String(s.id)}>
               {s.label}
             </option>
           ))}
@@ -135,9 +179,9 @@ export function Filters({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-[11px] text-white/60">Date range</span>
+        <span className="ui-label">Time window</span>
         <select
-          className="h-9 rounded-lg bg-white/10 px-3 text-sm text-white outline-none ring-1 ring-white/10"
+          className="ui-select"
           value={rangeValue}
           onChange={(e) => {
             const v = e.target.value;
@@ -151,32 +195,24 @@ export function Filters({
             onFilters({ ...filters, startMs, endMs });
           }}
         >
-          <option value="7d" className="text-black">
-            Last 7 days
-          </option>
-          <option value="30d" className="text-black">
-            Last 30 days
-          </option>
-          <option value="90d" className="text-black">
-            Last 90 days
-          </option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+          <option value="90d">Last 90 days</option>
         </select>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-[11px] text-white/60">City</span>
+        <span className="ui-label">Municipality</span>
         <select
-          className="h-9 rounded-lg bg-white/10 px-3 text-sm text-white outline-none ring-1 ring-white/10"
+          className="ui-select"
           value={filters.city ?? ""}
           onChange={(e) =>
             onFilters({ ...filters, city: e.target.value || undefined })
           }
         >
-          <option value="" className="text-black">
-            All
-          </option>
+          <option value="">All municipalities</option>
           {cities.map((c) => (
-            <option key={c} value={c} className="text-black">
+            <option key={c} value={c}>
               {c}
             </option>
           ))}
@@ -184,19 +220,17 @@ export function Filters({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-[11px] text-white/60">Type</span>
+        <span className="ui-label">Incident type</span>
         <select
-          className="h-9 rounded-lg bg-white/10 px-3 text-sm text-white outline-none ring-1 ring-white/10"
+          className="ui-select"
           value={filters.description ?? ""}
           onChange={(e) =>
             onFilters({ ...filters, description: e.target.value || undefined })
           }
         >
-          <option value="" className="text-black">
-            All
-          </option>
+          <option value="">All types</option>
           {descriptions.map((d) => (
-            <option key={d} value={d} className="text-black">
+            <option key={d} value={d}>
               {d}
             </option>
           ))}
