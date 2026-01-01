@@ -58,7 +58,10 @@ export function CustomSelect({
     const first = options.findIndex((o) => !o.disabled);
     const fallback = first >= 0 ? first : 0;
     if (multiple) return fallback;
-    return Math.max(0, options.findIndex((o) => o.value === value));
+    return Math.max(
+      0,
+      options.findIndex((o) => o.value === value)
+    );
   });
 
   const selectedLabel = useMemo(() => {
@@ -69,7 +72,8 @@ export function CustomSelect({
       if (picked.length === 0) return allOpt?.label ?? "";
       if (picked.length === 1) return picked[0]?.label ?? "";
       const labels = picked.map((p) => p.label);
-      if (labels.every((x) => typeof x === "string")) return (labels as string[]).join(", ");
+      if (labels.every((x) => typeof x === "string"))
+        return (labels as string[]).join(", ");
       return `${picked.length} selected`;
     }
 

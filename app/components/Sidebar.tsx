@@ -79,9 +79,6 @@ export function Sidebar({ items, onPick }: Props) {
             <div className="text-[25px] font-semibold text-white/95">
               Incidents
             </div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60">
-              Sorted & paginated
-            </div>
           </div>
           <div className="shrink-0 rounded-full mb-auto bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
             {total}
@@ -135,6 +132,12 @@ export function Sidebar({ items, onPick }: Props) {
         <div className="flex flex-col gap-2">
           {paged.map((f) => {
             const s = getIncidentStyle(f.properties.DESCRIPTION);
+            const rawCaseNo =
+              typeof f.properties.CASE_NO === "string" ||
+              typeof f.properties.CASE_NO === "number"
+                ? String(f.properties.CASE_NO)
+                : "";
+            const caseNo = rawCaseNo.trim();
             return (
               <button
                 key={String(f.properties.OBJECTID)}
@@ -149,17 +152,17 @@ export function Sidebar({ items, onPick }: Props) {
                         "Incident"}
                     </div>
                     <div className="mt-1 text-[11px] text-white/65">
-                      <span className="truncate">
+                      <div className="truncate">
                         {formatCity(f.properties.CITY) || ""}
-                      </span>
+                      </div>
+                      {caseNo ? (
+                        <div className="truncate">Case #{caseNo}</div>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="shrink-0 text-right">
-                    <div className="text-[11px] text-white/65">
-                      {formatIncidentDate(f.properties.DATE)}
-                    </div>
-                    <div className="mt-2 inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/75 ring-1 ring-white/10">
+                    <div className="inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/75 ring-1 ring-white/10">
                       <span className="inline-flex items-center gap-2">
                         <span
                           className="h-2 w-2 rounded-full"
@@ -167,6 +170,9 @@ export function Sidebar({ items, onPick }: Props) {
                         />
                         <span>{s.category}</span>
                       </span>
+                    </div>
+                    <div className="mt-2 text-[11px] text-white/65">
+                      {formatIncidentDate(f.properties.DATE)}
                     </div>
                   </div>
                 </div>

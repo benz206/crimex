@@ -10,6 +10,7 @@ export type IncidentProperties = {
   DATE?: number;
   CITY?: string;
   DESCRIPTION?: string;
+  CASE_NO?: string | number;
   [k: string]: unknown;
 };
 

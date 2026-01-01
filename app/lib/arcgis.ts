@@ -308,7 +308,9 @@ export async function fetchIncidentsGeoJSON(input: {
   pageSize?: number;
 }): Promise<IncidentFeatureCollection> {
   const where = buildIncidentWhere(input.filters ?? {});
-  const outFields = (input.outFields ?? ["OBJECTID", "DATE", "CITY", "DESCRIPTION"]).join(",");
+  const outFields = (
+    input.outFields ?? ["OBJECTID", "DATE", "CITY", "DESCRIPTION", "CASE_NO"]
+  ).join(",");
   const pageSize = Math.max(1, Math.min(5000, input.pageSize ?? 2000));
   const client = input.baseUrl ? new ArcGISFeatureLayerClient(input.baseUrl) : arcgisCrimeLayer;
 

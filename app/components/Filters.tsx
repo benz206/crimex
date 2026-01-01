@@ -9,12 +9,15 @@ import {
 } from "@/app/lib/maptiler";
 import type { IncidentFilters } from "@/app/lib/types";
 import { CustomSelect } from "@/app/components/CustomSelect";
+import { INCIDENT_TYPE_FILTER_OPTIONS } from "@/app/lib/incidentTypes";
 
 type Props = {
   styleId: MapTilerStyleId;
   onStyleId: (v: MapTilerStyleId) => void;
   heatmapEnabled: boolean;
   onHeatmapEnabled: (v: boolean) => void;
+  groupingEnabled: boolean;
+  onGroupingEnabled: (v: boolean) => void;
   filters: IncidentFilters;
   onFilters: (next: IncidentFilters) => void;
   onSearchPick: (center: [number, number], label: string) => void;
@@ -25,6 +28,8 @@ export function Filters({
   onStyleId,
   heatmapEnabled,
   onHeatmapEnabled,
+  groupingEnabled,
+  onGroupingEnabled,
   filters,
   onFilters,
   onSearchPick,
@@ -96,7 +101,7 @@ export function Filters({
             Halton Crime
           </div>
           <div className="mt-1 text-[11px] leading-4 text-white/60">
-            Filter incidents and switch between clusters and heatmap density.
+            Filter incidents and switch between heatmap density and points.
           </div>
         </div>
         <button
@@ -132,6 +137,26 @@ export function Filters({
         >
           {heatmapEnabled ? "Heatmap On" : "Heatmap Off"}
         </button>
+      </div>
+
+      <div className="ui-card">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="ui-checkbox mt-0.5"
+            checked={groupingEnabled}
+            disabled={heatmapEnabled}
+            onChange={(e) => onGroupingEnabled(e.target.checked)}
+          />
+          <span className="min-w-0">
+            <div className="text-[13px] font-semibold text-white/90">
+              Group Nearby Events
+            </div>
+            <div className="mt-0.5 text-[11px] leading-4 text-white/60">
+              Combine close incidents into clusters while zoomed out.
+            </div>
+          </span>
+        </label>
       </div>
 
       <div className="flex items-center gap-2">
@@ -268,54 +293,7 @@ export function Filters({
             onFilters({ ...filters, description: v.length ? v : undefined })
           }
           menuClassName="max-h-[22rem]"
-          options={[
-            { value: "", label: "All" },
-            { value: " ARSON", label: "Arson" },
-            { value: " ATTEMPT MURDER", label: "Attempt Murder" },
-            {
-              value: " BREAK AND ENTER HOUSE",
-              label: "Break and Enter – House",
-            },
-            {
-              value: " BREAK AND ENTER OTHER",
-              label: "Break and Enter – Other",
-            },
-            {
-              value: " BREAK AND ENTER SCHOOL",
-              label: "Break and Enter – School",
-            },
-            { value: " BREAK AND ENTER SHOP", label: "Break and Enter – Shop" },
-            {
-              value: " DANGEROUS OPERATION TRAFFIC",
-              label: "Dangerous Operation – Traffic",
-            },
-            { value: " FEDERAL STATS DRUGS", label: "Federal Stats – Drugs" },
-            { value: " HOMICIDE", label: "Homicide" },
-            { value: " IMPAIRED DRIVING", label: "Impaired Driving" },
-            { value: " MVC FATALITY", label: "MVC – Fatality" },
-            { value: " MVC HIT & RUN", label: "MVC – Hit & Run" },
-            { value: " MVC PI", label: "MVC – PI" },
-            { value: " OFFENSIVE WEAPONS", label: "Offensive Weapons" },
-            {
-              value: " PROPERTY DAMAGE OVER $5,000",
-              label: "Property Damage Over $5,000",
-            },
-            {
-              value: " PROPERTY DAMAGE UNDER $5,000",
-              label: "Property Damage Under $5,000",
-            },
-            {
-              value: " RECOVERED VEHICLE OTHER SERVICE",
-              label: "Recovered Vehicle – Other Service",
-            },
-            { value: " ROADSIDE TEST", label: "Roadside Test" },
-            { value: " ROBBERY", label: "Robbery" },
-            { value: " THEFT FROM AUTO", label: "Theft From Auto" },
-            { value: " THEFT OF BICYCLE", label: "Theft of Bicycle" },
-            { value: " THEFT OF VEHICLE", label: "Theft of Vehicle" },
-            { value: " THEFT OVER", label: "Theft Over" },
-            { value: " THEFT UNDER", label: "Theft Under" },
-          ]}
+          options={INCIDENT_TYPE_FILTER_OPTIONS}
         />
       </label>
 

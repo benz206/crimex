@@ -64,6 +64,11 @@ const popupHTML = (p: Record<string, unknown>) => {
   const rawDesc = typeof p.DESCRIPTION === "string" ? p.DESCRIPTION : "";
   const rawCity = typeof p.CITY === "string" ? p.CITY : "";
   const rawDate = typeof p.DATE === "number" ? p.DATE : undefined;
+  const rawCaseNo =
+    typeof p.CASE_NO === "string" || typeof p.CASE_NO === "number"
+      ? String(p.CASE_NO)
+      : "";
+  const caseNo = rawCaseNo.trim();
   const title = formatIncidentDescription(rawDesc) || "Incident";
   const city = formatCity(rawCity) || "";
   const date = formatIncidentDate(rawDate) || "";
@@ -83,6 +88,7 @@ const popupHTML = (p: Record<string, unknown>) => {
     </div>
     <div class="incident-popup__title">${escapeHtml(title)}</div>
     <div class="incident-popup__meta">
+      ${caseNo ? `<div>Case #${escapeHtml(caseNo)}</div>` : ""}
       ${city ? `<div>${escapeHtml(city)}</div>` : ""}
       ${date ? `<div>${escapeHtml(date)}</div>` : ""}
     </div>
@@ -96,12 +102,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const abortRef = useRef<AbortController | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const pulseRafRef = useRef<number | null>(null);
   const filtersRef = useRef<IncidentFilters>({});
   const [loadingCount, setLoadingCount] = useState(0);
   const [mobilePanel, setMobilePanel] = useState<
     "filters" | "incidents" | null
   >(null);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [groupingEnabled, setGroupingEnabled] = useState(true);
   const [currentStyleId, setCurrentStyleId] =
     useState<MapTilerStyleId>(styleId);
   const [filters, setFilters] = useState<IncidentFilters>(() => {
@@ -168,6 +176,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         cluster: true,
         clusterMaxZoom: 14,
         clusterRadius: 52,
+      });
+
+      map.addSource("incidents-raw", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        } as IncidentFeatureCollection,
       });
 
       map.addSource("query-area", {
@@ -260,10 +276,68 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         },
       });
 
+      map.addLayer(
+        {
+          id: "points-glow",
+          type: "circle",
+          source: "incidents",
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-color": [
+              "coalesce",
+              ["get", "__styleColor"],
+              "rgba(148,163,184,0.90)",
+            ],
+            "circle-radius": 5,
+            "circle-opacity": 0.0,
+            "circle-blur": 0.9,
+            "circle-stroke-width": 0,
+          },
+        },
+        "points"
+      );
+
+      map.addLayer({
+        id: "points-raw",
+        type: "circle",
+        source: "incidents-raw",
+        paint: {
+          "circle-color": [
+            "coalesce",
+            ["get", "__styleColor"],
+            "rgba(148,163,184,0.90)",
+          ],
+          "circle-radius": 5,
+          "circle-opacity": 0.92,
+          "circle-stroke-color": "rgba(0,0,0,0.35)",
+          "circle-stroke-width": 1.25,
+        },
+      });
+
+      map.addLayer(
+        {
+          id: "points-raw-glow",
+          type: "circle",
+          source: "incidents-raw",
+          paint: {
+            "circle-color": [
+              "coalesce",
+              ["get", "__styleColor"],
+              "rgba(148,163,184,0.90)",
+            ],
+            "circle-radius": 5,
+            "circle-opacity": 0.0,
+            "circle-blur": 0.9,
+            "circle-stroke-width": 0,
+          },
+        },
+        "points-raw"
+      );
+
       map.addLayer({
         id: "heatmap-outline",
         type: "heatmap",
-        source: "incidents",
+        source: "incidents-raw",
         maxzoom: 15,
         paint: {
           "heatmap-weight": [
@@ -315,7 +389,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       map.addLayer({
         id: "heatmap",
         type: "heatmap",
-        source: "incidents",
+        source: "incidents-raw",
         maxzoom: 15,
         paint: {
           "heatmap-weight": [
@@ -360,6 +434,56 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       map.setLayoutProperty("heatmap", "visibility", "none");
       map.setLayoutProperty("query-area-fill", "visibility", "none");
       map.setLayoutProperty("query-area-outline", "visibility", "none");
+      map.setLayoutProperty("points-raw", "visibility", "none");
+      map.setLayoutProperty("points-raw-glow", "visibility", "none");
+
+      if (pulseRafRef.current != null) {
+        cancelAnimationFrame(pulseRafRef.current);
+        pulseRafRef.current = null;
+      }
+
+      const periodMs = 1400;
+      let lastTick = 0;
+      const tick = (now: number) => {
+        if (!mapRef.current || mapRef.current !== map) return;
+        if (
+          !map.isStyleLoaded() ||
+          (!map.getLayer("points-glow") && !map.getLayer("points-raw-glow"))
+        ) {
+          pulseRafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        if (now - lastTick >= 33) {
+          lastTick = now;
+          const t = (now % periodMs) / periodMs;
+          const eased = 1 - Math.pow(1 - t, 3);
+          const radius = 5 + eased * 33;
+          const opacity = (1 - eased) * 0.38;
+          if (map.getLayer("points-glow")) {
+            map.setPaintProperty("points-glow", "circle-radius", radius);
+            map.setPaintProperty("points-glow", "circle-opacity", opacity);
+            map.setPaintProperty(
+              "points-glow",
+              "circle-blur",
+              0.9 + eased * 0.7
+            );
+          }
+          if (map.getLayer("points-raw-glow")) {
+            map.setPaintProperty("points-raw-glow", "circle-radius", radius);
+            map.setPaintProperty("points-raw-glow", "circle-opacity", opacity);
+            map.setPaintProperty(
+              "points-raw-glow",
+              "circle-blur",
+              0.9 + eased * 0.7
+            );
+          }
+        }
+
+        pulseRafRef.current = requestAnimationFrame(tick);
+      };
+
+      pulseRafRef.current = requestAnimationFrame(tick);
     });
 
     const setQueryArea = () => {
@@ -405,6 +529,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       if (!m) return;
       if (!m.isStyleLoaded()) return;
       if (!m.getSource("incidents")) return;
+      if (!m.getSource("incidents-raw")) return;
       setQueryArea();
 
       abortRef.current?.abort();
@@ -428,8 +553,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         });
 
         const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
+        const srcRaw = m.getSource("incidents-raw") as maplibregl.GeoJSONSource;
         const next = decorateIncidents(data, filtersRef.current);
         src.setData(next);
+        srcRaw.setData(next);
         setIncidents(next);
       } catch (e) {
         if (!isAbortError(e)) {
@@ -455,6 +582,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       popupRef.current = null;
       searchMarkerRef.current?.remove();
       searchMarkerRef.current = null;
+      if (pulseRafRef.current != null) {
+        cancelAnimationFrame(pulseRafRef.current);
+        pulseRafRef.current = null;
+      }
       mapRef.current = null;
       map.remove();
     };
@@ -489,18 +620,39 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       m.setLayoutProperty(
         "clusters",
         "visibility",
-        heatmapEnabled ? "none" : "visible"
+        heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
       m.setLayoutProperty(
         "cluster-count",
         "visibility",
-        heatmapEnabled ? "none" : "visible"
+        heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
       m.setLayoutProperty(
         "points",
         "visibility",
-        heatmapEnabled ? "none" : "visible"
+        heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
+      if (m.getLayer("points-glow")) {
+        m.setLayoutProperty(
+          "points-glow",
+          "visibility",
+          heatmapEnabled || !groupingEnabled ? "none" : "visible"
+        );
+      }
+      if (m.getLayer("points-raw")) {
+        m.setLayoutProperty(
+          "points-raw",
+          "visibility",
+          heatmapEnabled || groupingEnabled ? "none" : "visible"
+        );
+      }
+      if (m.getLayer("points-raw-glow")) {
+        m.setLayoutProperty(
+          "points-raw-glow",
+          "visibility",
+          heatmapEnabled || groupingEnabled ? "none" : "visible"
+        );
+      }
     };
 
     if (m.isStyleLoaded()) {
@@ -512,7 +664,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     return () => {
       m.off("load", apply);
     };
-  }, [heatmapEnabled, styleUrl]);
+  }, [heatmapEnabled, groupingEnabled, styleUrl]);
 
   useEffect(() => {
     const m = mapRef.current;
@@ -558,6 +710,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
     m.on("click", "clusters", onClickCluster);
     m.on("click", "points", onClickPoint);
+    m.on("click", "points-raw", onClickPoint);
     m.on("mouseenter", "clusters", () => {
       m.getCanvas().style.cursor = "pointer";
     });
@@ -570,10 +723,17 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     m.on("mouseleave", "points", () => {
       m.getCanvas().style.cursor = "";
     });
+    m.on("mouseenter", "points-raw", () => {
+      m.getCanvas().style.cursor = "pointer";
+    });
+    m.on("mouseleave", "points-raw", () => {
+      m.getCanvas().style.cursor = "";
+    });
 
     return () => {
       m.off("click", "clusters", onClickCluster);
       m.off("click", "points", onClickPoint);
+      m.off("click", "points-raw", onClickPoint);
     };
   }, [styleUrl]);
 
@@ -582,6 +742,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     if (!m) return;
     if (!m.isStyleLoaded()) return;
     if (!m.getSource("incidents")) return;
+    if (!m.getSource("incidents-raw")) return;
 
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -604,8 +765,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           signal: ac.signal,
         });
         const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
+        const srcRaw = m.getSource("incidents-raw") as maplibregl.GeoJSONSource;
         const next = decorateIncidents(data, filters);
         src.setData(next);
+        srcRaw.setData(next);
         setIncidents(next);
       } catch (e) {
         if (!isAbortError(e)) {
@@ -683,6 +846,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           onStyleId={(v) => setCurrentStyleId(v)}
           heatmapEnabled={heatmapEnabled}
           onHeatmapEnabled={setHeatmapEnabled}
+          groupingEnabled={groupingEnabled}
+          onGroupingEnabled={setGroupingEnabled}
           filters={filters}
           onFilters={setFilters}
           onSearchPick={onSearchPick}
@@ -745,6 +910,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                   onStyleId={(v) => setCurrentStyleId(v)}
                   heatmapEnabled={heatmapEnabled}
                   onHeatmapEnabled={setHeatmapEnabled}
+                  groupingEnabled={groupingEnabled}
+                  onGroupingEnabled={setGroupingEnabled}
                   filters={filters}
                   onFilters={setFilters}
                   onSearchPick={(center, label) => {
