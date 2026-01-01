@@ -1476,5 +1476,3 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     </div>
   );
 }
-
-

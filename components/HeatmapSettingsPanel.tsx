@@ -205,7 +205,9 @@ export function HeatmapSettingsPanel({
                 max={1}
                 step={0.05}
                 value={settings.opacity}
-                onChange={(e) => set({ opacity: clamp(toNum(e.target.value), 0, 1) })}
+                onChange={(e) =>
+                  set({ opacity: clamp(toNum(e.target.value), 0, 1) })
+                }
               />
             </div>
 
@@ -242,5 +244,3 @@ export function HeatmapSettingsPanel({
     </div>
   );
 }
-
-

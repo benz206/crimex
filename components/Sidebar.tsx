@@ -215,5 +215,3 @@ export function Sidebar({ items, onPick }: Props) {
     </div>
   );
 }
-
-

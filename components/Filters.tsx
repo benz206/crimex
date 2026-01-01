@@ -236,7 +236,9 @@ export function Filters({
         <CustomSelect
           multiple
           value={filters.city ?? []}
-          onValue={(v) => onFilters({ ...filters, city: v.length ? v : undefined })}
+          onValue={(v) =>
+            onFilters({ ...filters, city: v.length ? v : undefined })
+          }
           options={[
             { value: "", label: "All" },
             { value: "ACTON", label: "Acton" },
@@ -264,5 +266,3 @@ export function Filters({
     </div>
   );
 }
-
-
