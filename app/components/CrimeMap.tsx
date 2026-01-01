@@ -1288,10 +1288,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       />
 
       {isLoading && (
-        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
-          <div className="ui-panel-strong inline-flex items-center gap-2 px-3 py-2 text-[12px] text-white/85">
+        <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center">
+          <div className="ui-panel-strong inline-flex items-center gap-2 px-3 py-2 mb-4 text-[12px] text-white/85">
             <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
-            <span>Updating…</span>
+            <span>Updating...</span>
           </div>
         </div>
       )}
