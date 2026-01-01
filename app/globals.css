@@ -342,10 +342,17 @@ body {
 }
 
 .incident-popup__title {
-  margin-top: 8px;
+  margin-top: 0;
   font-weight: 750;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.95);
+}
+
+.incident-popup__titleRow {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .incident-popup__meta {

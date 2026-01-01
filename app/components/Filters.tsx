@@ -16,8 +16,11 @@ type Props = {
   onStyleId: (v: MapTilerStyleId) => void;
   heatmapEnabled: boolean;
   onHeatmapEnabled: (v: boolean) => void;
+  onHeatmapSettingsOpen: () => void;
   groupingEnabled: boolean;
   onGroupingEnabled: (v: boolean) => void;
+  useIcons: boolean;
+  onUseIcons: (v: boolean) => void;
   filters: IncidentFilters;
   onFilters: (next: IncidentFilters) => void;
   onSearchPick: (center: [number, number], label: string) => void;
@@ -28,8 +31,11 @@ export function Filters({
   onStyleId,
   heatmapEnabled,
   onHeatmapEnabled,
+  onHeatmapSettingsOpen,
   groupingEnabled,
   onGroupingEnabled,
+  useIcons,
+  onUseIcons,
   filters,
   onFilters,
   onSearchPick,
@@ -128,15 +134,25 @@ export function Filters({
             Heatmap shows density; the outline shows the current data window.
           </div>
         </div>
-        <button
-          type="button"
-          className={
-            heatmapEnabled ? "ui-btn-primary shrink-0" : "ui-btn shrink-0"
-          }
-          onClick={() => onHeatmapEnabled(!heatmapEnabled)}
-        >
-          {heatmapEnabled ? "Heatmap On" : "Heatmap Off"}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="ui-btn h-9 px-3 text-[13px] disabled:opacity-50"
+            disabled={!heatmapEnabled}
+            onClick={onHeatmapSettingsOpen}
+          >
+            Settings
+          </button>
+          <button
+            type="button"
+            className={
+              heatmapEnabled ? "ui-btn-primary shrink-0" : "ui-btn shrink-0"
+            }
+            onClick={() => onHeatmapEnabled(!heatmapEnabled)}
+          >
+            {heatmapEnabled ? "Heatmap On" : "Heatmap Off"}
+          </button>
+        </div>
       </div>
 
       <div className="ui-card">
@@ -154,6 +170,25 @@ export function Filters({
             </div>
             <div className="mt-0.5 text-[11px] leading-4 text-white/60">
               Combine close incidents into clusters while zoomed out.
+            </div>
+          </span>
+        </label>
+      </div>
+
+      <div className="ui-card">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="ui-checkbox mt-0.5"
+            checked={useIcons}
+            onChange={(e) => onUseIcons(e.target.checked)}
+          />
+          <span className="min-w-0">
+            <div className="text-[13px] font-semibold text-white/90">
+              Use Icons
+            </div>
+            <div className="mt-0.5 text-[11px] leading-4 text-white/60">
+              Show an icon in map labels (popups).
             </div>
           </span>
         </label>

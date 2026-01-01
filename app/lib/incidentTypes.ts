@@ -29,8 +29,8 @@ export const INCIDENT_TYPE_CHOICES: IncidentTypeChoice[] = [
   { value: " THEFT FROM AUTO", label: "Theft From Auto" },
   { value: " THEFT OF BICYCLE", label: "Theft of Bicycle" },
   { value: " THEFT OF VEHICLE", label: "Theft of Vehicle" },
-  { value: " THEFT OVER", label: "Theft Over" },
-  { value: " THEFT UNDER", label: "Theft Under" },
+  { value: " THEFT OVER", label: "Theft Over $5,000" },
+  { value: " THEFT UNDER", label: "Theft Under $5,000" },
 ];
 
 export const INCIDENT_TYPE_FILTER_OPTIONS: IncidentTypeChoice[] = [

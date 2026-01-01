@@ -29,4 +29,13 @@ export type IncidentFilters = {
   hideRoadTests?: boolean;
 };
 
+export type HeatmapSettings = {
+  radius0: number;
+  radius12: number;
+  intensity0: number;
+  intensity12: number;
+  opacity: number;
+  outlineOpacity: number;
+};
+
 
