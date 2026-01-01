@@ -13,6 +13,12 @@ import type {
   IncidentFeatureCollection,
   IncidentFilters,
 } from "@/app/lib/types";
+import {
+  formatCity,
+  formatIncidentDate,
+  formatIncidentDescription,
+  getIncidentStyle,
+} from "@/app/lib/incidentStyle";
 import { Filters } from "@/app/components/Filters";
 import { Sidebar } from "@/app/components/Sidebar";
 
@@ -33,12 +39,80 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const [filters, setFilters] = useState<IncidentFilters>(() => {
     const endMs = Date.now();
     const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-    return { startMs, endMs };
+    return { startMs, endMs, hideRoadTests: true };
   });
   const [incidents, setIncidents] = useState<IncidentFeatureCollection>({
     type: "FeatureCollection",
     features: [],
   });
+
+  const isRoadsideTest = (desc?: string) => {
+    const d = (desc ?? "").trim().toUpperCase();
+    return d === "ROADSIDE TEST" || d === "ROAD TEST" || d === "ROADTEST";
+  };
+
+  const decorateIncidents = (
+    fc: IncidentFeatureCollection,
+    f: IncidentFilters
+  ): IncidentFeatureCollection => {
+    const features = fc.features
+      .filter(
+        (x) => !f.hideRoadTests || !isRoadsideTest(x.properties.DESCRIPTION)
+      )
+      .map((x) => {
+        const s = getIncidentStyle(x.properties.DESCRIPTION);
+        const nextProps = {
+          ...x.properties,
+          __styleColor: s.color,
+          __styleCategory: s.category,
+          __isRoadsideTest: isRoadsideTest(x.properties.DESCRIPTION),
+        } as typeof x.properties;
+        return { ...x, properties: nextProps };
+      });
+    return { ...fc, features };
+  };
+
+  const escapeHtml = (v: string) =>
+    v
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+
+  const popupHTML = (p: Record<string, unknown>) => {
+    const rawDesc = typeof p.DESCRIPTION === "string" ? p.DESCRIPTION : "";
+    const rawCity = typeof p.CITY === "string" ? p.CITY : "";
+    const rawDate = typeof p.DATE === "number" ? p.DATE : undefined;
+    const title = formatIncidentDescription(rawDesc) || "Incident";
+    const city = formatCity(rawCity) || "";
+    const date = formatIncidentDate(rawDate) || "";
+    const style = getIncidentStyle(rawDesc);
+    const note = isRoadsideTest(rawDesc)
+      ? "Roadside tests are police screening checks and aren’t necessarily a reported incident."
+      : "";
+
+    return `<div class="incident-popup" style="--incident-color:${escapeHtml(
+      style.color
+    )};">
+      <div class="incident-popup__row">
+        <div class="incident-popup__badge">
+          <span class="incident-popup__dot"></span>
+          <span>${escapeHtml(style.category)}</span>
+        </div>
+      </div>
+      <div class="incident-popup__title">${escapeHtml(title)}</div>
+      <div class="incident-popup__meta">
+        ${city ? `<div>${escapeHtml(city)}</div>` : ""}
+        ${date ? `<div>${escapeHtml(date)}</div>` : ""}
+      </div>
+      ${
+        note
+          ? `<div class="incident-popup__note">${escapeHtml(note)}</div>`
+          : ""
+      }
+    </div>`;
+  };
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? "";
   const styleUrl = useMemo(() => {
@@ -95,7 +169,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         type: "fill",
         source: "query-area",
         paint: {
-          "fill-color": "rgba(46,229,157,0.10)",
+          "fill-color": "rgba(80,200,255,0.12)",
           "fill-opacity": 0.9,
         },
       });
@@ -105,7 +179,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         type: "line",
         source: "query-area",
         paint: {
-          "line-color": "rgba(46,229,157,0.65)",
+          "line-color": "rgba(80,200,255,0.70)",
           "line-width": 2,
           "line-blur": 0.2,
         },
@@ -160,10 +234,15 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         source: "incidents",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-color": "rgba(255,110,160,0.85)",
-          "circle-radius": 4.5,
-          "circle-stroke-color": "rgba(0,0,0,0.25)",
-          "circle-stroke-width": 1,
+          "circle-color": [
+            "coalesce",
+            ["get", "__styleColor"],
+            "rgba(148,163,184,0.90)",
+          ],
+          "circle-radius": 5,
+          "circle-opacity": 0.92,
+          "circle-stroke-color": "rgba(0,0,0,0.35)",
+          "circle-stroke-width": 1.25,
         },
       });
 
@@ -333,8 +412,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       });
 
       const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
-      src.setData(data);
-      setIncidents(data);
+      const next = decorateIncidents(data, filtersRef.current);
+      src.setData(next);
+      setIncidents(next);
     };
 
     const onMoveEnd = () => {
@@ -446,21 +526,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       if (!isLngLat(coords)) return;
 
       const p = f.properties ?? {};
-      const title = p.DESCRIPTION ?? "Incident";
-      const city = p.CITY ?? "";
-      const date = p.DATE ? new Date(Number(p.DATE)).toLocaleString() : "";
-
       new maplibregl.Popup({ closeButton: true, closeOnClick: true })
         .setLngLat(coords)
-        .setHTML(
-          `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:12px;">
-            <div style="font-weight:700;margin-bottom:6px;">${String(
-              title
-            )}</div>
-            <div style="opacity:.75;">${String(city)}</div>
-            <div style="opacity:.75;">${String(date)}</div>
-          </div>`
-        )
+        .setHTML(popupHTML(p))
         .addTo(m);
     };
 
@@ -510,8 +578,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         signal: ac.signal,
       });
       const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
-      src.setData(data);
-      setIncidents(data);
+      const next = decorateIncidents(data, filters);
+      src.setData(next);
+      setIncidents(next);
     })();
 
     return () => {
@@ -546,25 +615,13 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     if (!Number.isFinite(center[0]) || !Number.isFinite(center[1])) return;
     m.easeTo({ center, zoom: Math.max(m.getZoom(), 14) });
 
-    const title = f.properties.DESCRIPTION ?? "Incident";
-    const city = f.properties.CITY ?? "";
-    const date = f.properties.DATE
-      ? new Date(Number(f.properties.DATE)).toLocaleString()
-      : "";
-
     popupRef.current?.remove();
     popupRef.current = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: true,
     })
       .setLngLat(center)
-      .setHTML(
-        `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:12px;">
-          <div style="font-weight:700;margin-bottom:6px;">${String(title)}</div>
-          <div style="opacity:.75;">${String(city)}</div>
-          <div style="opacity:.75;">${String(date)}</div>
-        </div>`
-      )
+      .setHTML(popupHTML(f.properties))
       .addTo(m);
   };
 
@@ -586,8 +643,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     })
       .setLngLat(center)
       .setHTML(
-        `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:12px;">
-          <div style="font-weight:700;margin-bottom:6px;">${String(label)}</div>
+        `<div class="incident-popup">
+          <div class="incident-popup__title">${escapeHtml(String(label))}</div>
         </div>`
       )
       .addTo(m);

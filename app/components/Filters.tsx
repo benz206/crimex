@@ -327,8 +327,8 @@ export function Filters({
               Hide Roadside Tests
             </div>
             <div className="mt-0.5 text-[11px] leading-4 text-white/60">
-              Roadside tests are police screening checks and aren’t necessarily a
-              reported incident.
+              Roadside tests are police screening checks and aren’t necessarily
+              a reported incident.
             </div>
           </span>
         </label>

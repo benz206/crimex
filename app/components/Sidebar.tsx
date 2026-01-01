@@ -29,7 +29,7 @@ export function Sidebar({ items, onPick }: Props) {
               Most recent first
             </div>
           </div>
-          <div className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
+          <div className="shrink-0 rounded-full mb-auto bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
             {items.length}
           </div>
         </div>
@@ -37,34 +37,47 @@ export function Sidebar({ items, onPick }: Props) {
       <div className="ui-divider mx-4" />
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-3">
         <div className="flex flex-col gap-2">
-          {items.map((f) => (
-            <button
-              key={String(f.properties.OBJECTID)}
-              type="button"
-              className="ui-card relative overflow-hidden"
-              onClick={() => onPick(f)}
-            >
-              <div className="text-[14px] font-semibold text-white/95">
-                {formatIncidentDescription(f.properties.DESCRIPTION) ||
-                  "Incident"}
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/65">
-                <span className="truncate">
-                  {formatCity(f.properties.CITY) || ""}
-                </span>
-                <span className="shrink-0">
-                  {formatIncidentDate(f.properties.DATE)}
-                </span>
-              </div>
-              <div
-                className="absolute left-0 right-0 bottom-0 h-1"
-                style={{
-                  backgroundColor: getIncidentStyle(f.properties.DESCRIPTION)
-                    .color,
-                }}
-              />
-            </button>
-          ))}
+          {items.map((f) => {
+            const s = getIncidentStyle(f.properties.DESCRIPTION);
+            return (
+              <button
+                key={String(f.properties.OBJECTID)}
+                type="button"
+                className="ui-card relative overflow-hidden"
+                onClick={() => onPick(f)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-semibold text-white/95">
+                      {formatIncidentDescription(f.properties.DESCRIPTION) ||
+                        "Incident"}
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/65">
+                      <span className="truncate">
+                        {formatCity(f.properties.CITY) || ""}
+                      </span>
+                      <span className="shrink-0">
+                        {formatIncidentDate(f.properties.DATE)}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/75 ring-1 ring-white/10">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <span>{s.category}</span>
+                    </span>
+                  </span>
+                </div>
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-1"
+                  style={{ backgroundColor: s.color }}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

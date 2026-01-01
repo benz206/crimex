@@ -249,7 +249,7 @@ body {
   border-radius: 999px;
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.86);
   font-size: 11px;
   line-height: 1rem;
@@ -285,8 +285,8 @@ body {
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.70);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 11px;
   line-height: 1rem;
 }
