@@ -26,6 +26,70 @@ type Props = {
   styleId?: MapTilerStyleId;
 };
 
+const isRoadsideTest = (desc?: string) => {
+  const d = (desc ?? "").trim().toUpperCase();
+  return d === "ROADSIDE TEST" || d === "ROAD TEST" || d === "ROADTEST";
+};
+
+const decorateIncidents = (
+  fc: IncidentFeatureCollection,
+  f: IncidentFilters
+): IncidentFeatureCollection => {
+  const features = fc.features
+    .filter(
+      (x) => !f.hideRoadTests || !isRoadsideTest(x.properties.DESCRIPTION)
+    )
+    .map((x) => {
+      const s = getIncidentStyle(x.properties.DESCRIPTION);
+      const nextProps = {
+        ...x.properties,
+        __styleColor: s.color,
+        __styleCategory: s.category,
+        __isRoadsideTest: isRoadsideTest(x.properties.DESCRIPTION),
+      } as typeof x.properties;
+      return { ...x, properties: nextProps };
+    });
+  return { ...fc, features };
+};
+
+const escapeHtml = (v: string) =>
+  v
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const popupHTML = (p: Record<string, unknown>) => {
+  const rawDesc = typeof p.DESCRIPTION === "string" ? p.DESCRIPTION : "";
+  const rawCity = typeof p.CITY === "string" ? p.CITY : "";
+  const rawDate = typeof p.DATE === "number" ? p.DATE : undefined;
+  const title = formatIncidentDescription(rawDesc) || "Incident";
+  const city = formatCity(rawCity) || "";
+  const date = formatIncidentDate(rawDate) || "";
+  const style = getIncidentStyle(rawDesc);
+  const note = isRoadsideTest(rawDesc)
+    ? "Roadside tests are police screening checks and aren’t necessarily a reported incident."
+    : "";
+
+  return `<div class="incident-popup" style="--incident-color:${escapeHtml(
+    style.color
+  )};">
+    <div class="incident-popup__row">
+      <div class="incident-popup__badge">
+        <span class="incident-popup__dot"></span>
+        <span>${escapeHtml(style.category)}</span>
+      </div>
+    </div>
+    <div class="incident-popup__title">${escapeHtml(title)}</div>
+    <div class="incident-popup__meta">
+      ${city ? `<div>${escapeHtml(city)}</div>` : ""}
+      ${date ? `<div>${escapeHtml(date)}</div>` : ""}
+    </div>
+    ${note ? `<div class="incident-popup__note">${escapeHtml(note)}</div>` : ""}
+  </div>`;
+};
+
 export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
@@ -45,74 +109,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     type: "FeatureCollection",
     features: [],
   });
-
-  const isRoadsideTest = (desc?: string) => {
-    const d = (desc ?? "").trim().toUpperCase();
-    return d === "ROADSIDE TEST" || d === "ROAD TEST" || d === "ROADTEST";
-  };
-
-  const decorateIncidents = (
-    fc: IncidentFeatureCollection,
-    f: IncidentFilters
-  ): IncidentFeatureCollection => {
-    const features = fc.features
-      .filter(
-        (x) => !f.hideRoadTests || !isRoadsideTest(x.properties.DESCRIPTION)
-      )
-      .map((x) => {
-        const s = getIncidentStyle(x.properties.DESCRIPTION);
-        const nextProps = {
-          ...x.properties,
-          __styleColor: s.color,
-          __styleCategory: s.category,
-          __isRoadsideTest: isRoadsideTest(x.properties.DESCRIPTION),
-        } as typeof x.properties;
-        return { ...x, properties: nextProps };
-      });
-    return { ...fc, features };
-  };
-
-  const escapeHtml = (v: string) =>
-    v
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-
-  const popupHTML = (p: Record<string, unknown>) => {
-    const rawDesc = typeof p.DESCRIPTION === "string" ? p.DESCRIPTION : "";
-    const rawCity = typeof p.CITY === "string" ? p.CITY : "";
-    const rawDate = typeof p.DATE === "number" ? p.DATE : undefined;
-    const title = formatIncidentDescription(rawDesc) || "Incident";
-    const city = formatCity(rawCity) || "";
-    const date = formatIncidentDate(rawDate) || "";
-    const style = getIncidentStyle(rawDesc);
-    const note = isRoadsideTest(rawDesc)
-      ? "Roadside tests are police screening checks and aren’t necessarily a reported incident."
-      : "";
-
-    return `<div class="incident-popup" style="--incident-color:${escapeHtml(
-      style.color
-    )};">
-      <div class="incident-popup__row">
-        <div class="incident-popup__badge">
-          <span class="incident-popup__dot"></span>
-          <span>${escapeHtml(style.category)}</span>
-        </div>
-      </div>
-      <div class="incident-popup__title">${escapeHtml(title)}</div>
-      <div class="incident-popup__meta">
-        ${city ? `<div>${escapeHtml(city)}</div>` : ""}
-        ${date ? `<div>${escapeHtml(date)}</div>` : ""}
-      </div>
-      ${
-        note
-          ? `<div class="incident-popup__note">${escapeHtml(note)}</div>`
-          : ""
-      }
-    </div>`;
-  };
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? "";
   const styleUrl = useMemo(() => {
@@ -598,14 +594,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     );
   }
 
-  const sortedForSidebar: IncidentFeature[] = [...incidents.features].sort(
-    (a, b) => {
-      const ad = Number(a.properties.DATE ?? 0);
-      const bd = Number(b.properties.DATE ?? 0);
-      return bd - ad;
-    }
-  );
-
   const flyToIncident = (f: IncidentFeature) => {
     const m = mapRef.current;
     if (!m) return;
@@ -665,7 +653,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       </div>
 
       <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 h-[42dvh] w-auto overflow-hidden md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-24px)] md:w-[400px]">
-        <Sidebar items={sortedForSidebar} onPick={flyToIncident} />
+        <Sidebar items={incidents.features} onPick={flyToIncident} />
       </div>
       <div ref={containerRef} className="h-full w-full" />
     </div>

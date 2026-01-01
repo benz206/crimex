@@ -104,7 +104,7 @@ export function Filters({
           onClick={() => {
             const endMs = Date.now();
             const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-            onFilters({ startMs, endMs, hideRoadTests: false });
+            onFilters({ startMs, endMs, hideRoadTests: true });
             setQuery("");
             setOpen(false);
           }}
