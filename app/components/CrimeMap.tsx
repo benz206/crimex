@@ -168,6 +168,58 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       });
 
       map.addLayer({
+        id: "heatmap-outline",
+        type: "heatmap",
+        source: "incidents",
+        maxzoom: 15,
+        paint: {
+          "heatmap-weight": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            0,
+            0.2,
+            12,
+            1,
+          ],
+          "heatmap-intensity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            0,
+            0.8,
+            12,
+            1.8,
+          ],
+          "heatmap-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            0,
+            14,
+            12,
+            50,
+          ],
+          "heatmap-opacity": 0.9,
+          "heatmap-color": [
+            "interpolate",
+            ["linear"],
+            ["heatmap-density"],
+            0,
+            "rgba(0,0,0,0)",
+            0.14,
+            "rgba(0,0,0,0.00)",
+            0.22,
+            "rgba(0,0,0,0.22)",
+            0.55,
+            "rgba(0,0,0,0.38)",
+            1,
+            "rgba(0,0,0,0.60)",
+          ],
+        },
+      });
+
+      map.addLayer({
         id: "heatmap",
         type: "heatmap",
         source: "incidents",
@@ -211,6 +263,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         },
       });
 
+      map.setLayoutProperty("heatmap-outline", "visibility", "none");
       map.setLayoutProperty("heatmap", "visibility", "none");
       map.setLayoutProperty("query-area-fill", "visibility", "none");
       map.setLayoutProperty("query-area-outline", "visibility", "none");
@@ -220,7 +273,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       const m = mapRef.current;
       if (!m) return;
       if (!m.isStyleLoaded()) return;
-      const src = m.getSource("query-area") as maplibregl.GeoJSONSource | undefined;
+      const src = m.getSource("query-area") as
+        | maplibregl.GeoJSONSource
+        | undefined;
       if (!src) return;
 
       const b = m.getBounds();
@@ -306,7 +361,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     if (!m) return;
 
     const apply = () => {
-      if (!m.getLayer("heatmap")) return;
+      if (!m.getLayer("heatmap") || !m.getLayer("heatmap-outline")) return;
+      m.setLayoutProperty(
+        "heatmap-outline",
+        "visibility",
+        heatmapEnabled ? "visible" : "none"
+      );
       m.setLayoutProperty(
         "heatmap",
         "visibility",

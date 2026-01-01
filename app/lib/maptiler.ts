@@ -17,8 +17,6 @@ export function mapTilerStyleUrl(styleId: MapTilerStyleId, key: string): string 
 export const STYLE_CHOICES: Array<{ id: MapTilerStyleId; label: string }> = [
   { id: "darkmatter", label: "Darkmatter" },
   { id: "streets-v2-dark", label: "Streets (Dark)" },
-  { id: "night", label: "Night" },
-  { id: "toner-dark", label: "Toner (Dark)" },
 ];
 
 export type MapTilerGeocodeResult = {
