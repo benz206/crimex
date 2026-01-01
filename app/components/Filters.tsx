@@ -15,7 +15,6 @@ type Props = {
   styleId: MapTilerStyleId;
   onStyleId: (v: MapTilerStyleId) => void;
   heatmapEnabled: boolean;
-  onHeatmapEnabled: (v: boolean) => void;
   onHeatmapSettingsOpen: () => void;
   groupingEnabled: boolean;
   onGroupingEnabled: (v: boolean) => void;
@@ -30,7 +29,6 @@ export function Filters({
   styleId,
   onStyleId,
   heatmapEnabled,
-  onHeatmapEnabled,
   onHeatmapSettingsOpen,
   groupingEnabled,
   onGroupingEnabled,
@@ -129,30 +127,20 @@ export function Filters({
 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="ui-title">View</div>
+          <div className="ui-title">Heatmap</div>
           <div className="mt-1 text-[11px] leading-4 text-white/60">
-            Heatmap shows density; the outline shows the current data window.
+            View incident density and adjust smoothing, intensity, and opacity.
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            className="ui-btn h-9 px-3 text-[13px] disabled:opacity-50"
-            disabled={!heatmapEnabled}
-            onClick={onHeatmapSettingsOpen}
-          >
-            Settings
-          </button>
-          <button
-            type="button"
-            className={
-              heatmapEnabled ? "ui-btn-primary shrink-0" : "ui-btn shrink-0"
-            }
-            onClick={() => onHeatmapEnabled(!heatmapEnabled)}
-          >
-            {heatmapEnabled ? "Heatmap On" : "Heatmap Off"}
-          </button>
-        </div>
+        <button
+          type="button"
+          className={
+            heatmapEnabled ? "ui-btn-primary shrink-0" : "ui-btn shrink-0"
+          }
+          onClick={onHeatmapSettingsOpen}
+        >
+          Heatmap
+        </button>
       </div>
 
       <div className="ui-card">

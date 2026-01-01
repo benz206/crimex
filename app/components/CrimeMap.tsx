@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import maplibregl, {
   type ExpressionSpecification,
   type Map,
@@ -83,10 +84,12 @@ const decorateIncidents = (
     )
     .map((x) => {
       const s = getIncidentStyle(x.properties.DESCRIPTION);
+      const iconId = categoryIconId[s.category] ?? categoryIconId.Other;
       const nextProps = {
         ...x.properties,
         __styleColor: s.color,
         __styleCategory: s.category,
+        __iconId: iconId,
         __isRoadsideTest: isRoadsideTest(x.properties.DESCRIPTION),
       } as typeof x.properties;
       return { ...x, properties: nextProps };
@@ -103,6 +106,49 @@ const categoryIcon: Record<string, LucideIcon> = {
   Property: Home,
   Other: CircleHelp,
 };
+
+const categoryIconId: Record<string, string> = {
+  "Break & Enter": "lucide-break-enter",
+  Violence: "lucide-violence",
+  Theft: "lucide-theft",
+  Traffic: "lucide-traffic",
+  "Impaired/Checks": "lucide-checks",
+  Property: "lucide-property",
+  Other: "lucide-other",
+};
+
+const iconById: Record<string, LucideIcon> = {
+  [categoryIconId["Break & Enter"]]: DoorOpen,
+  [categoryIconId["Violence"]]: ShieldAlert,
+  [categoryIconId["Theft"]]: ShoppingBag,
+  [categoryIconId["Traffic"]]: Car,
+  [categoryIconId["Impaired/Checks"]]: CheckCircle2,
+  [categoryIconId["Property"]]: Home,
+  [categoryIconId["Other"]]: CircleHelp,
+};
+
+async function loadSvgAsImage(svg: string): Promise<HTMLImageElement> {
+  const img = new Image();
+  img.decoding = "async";
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Failed to load SVG image"));
+  });
+  return img;
+}
+
+async function ensureLucideImages(map: maplibregl.Map) {
+  for (const id of Object.keys(iconById)) {
+    if (map.hasImage(id)) continue;
+    const Icon = iconById[id];
+    const svg = renderToStaticMarkup(
+      <Icon size={20} strokeWidth={2.25} color="rgba(255,255,255,0.92)" />
+    );
+    const img = await loadSvgAsImage(svg);
+    map.addImage(id, img, { pixelRatio: 2 });
+  }
+}
 
 function popupWithReact(popup: maplibregl.Popup, node: ReactNode) {
   const el = document.createElement("div");
@@ -367,6 +413,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
     map.on("load", () => {
       stopOnce();
+      void ensureLucideImages(map);
       const beforeLabels = findLabelAnchorLayerId(map);
       map.addSource("incidents", {
         type: "geojson",
@@ -494,6 +541,29 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
       map.addLayer(
         {
+          id: "points-icons",
+          type: "symbol",
+          source: "incidents",
+          filter: ["!", ["has", "point_count"]],
+          layout: {
+            "icon-image": [
+              "coalesce",
+              ["get", "__iconId"],
+              categoryIconId.Other,
+            ] as ExpressionSpecification,
+            "icon-size": 1,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+          paint: {
+            "icon-opacity": 0.95,
+          },
+        },
+        "points"
+      );
+
+      map.addLayer(
+        {
           id: "points-glow",
           type: "circle",
           source: "incidents",
@@ -531,6 +601,28 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           },
         },
         beforeLabels
+      );
+
+      map.addLayer(
+        {
+          id: "points-raw-icons",
+          type: "symbol",
+          source: "incidents-raw",
+          layout: {
+            "icon-image": [
+              "coalesce",
+              ["get", "__iconId"],
+              categoryIconId.Other,
+            ] as ExpressionSpecification,
+            "icon-size": 1,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+          paint: {
+            "icon-opacity": 0.95,
+          },
+        },
+        "points-raw"
       );
 
       map.addLayer(
@@ -604,6 +696,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       map.setLayoutProperty("query-area-fill", "visibility", "none");
       map.setLayoutProperty("query-area-outline", "visibility", "none");
       map.setLayoutProperty("points-raw", "visibility", "none");
+      map.setLayoutProperty("points-raw-icons", "visibility", "none");
       map.setLayoutProperty("points-raw-glow", "visibility", "none");
       applyHeatmapSettings(map, heatmapSettingsRef.current);
 
@@ -802,6 +895,13 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         "visibility",
         heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
+      if (m.getLayer("points-icons")) {
+        m.setLayoutProperty(
+          "points-icons",
+          "visibility",
+          !useIcons || heatmapEnabled || !groupingEnabled ? "none" : "visible"
+        );
+      }
       if (m.getLayer("points-glow")) {
         m.setLayoutProperty(
           "points-glow",
@@ -814,6 +914,13 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           "points-raw",
           "visibility",
           heatmapEnabled || groupingEnabled ? "none" : "visible"
+        );
+      }
+      if (m.getLayer("points-raw-icons")) {
+        m.setLayoutProperty(
+          "points-raw-icons",
+          "visibility",
+          !useIcons || heatmapEnabled || groupingEnabled ? "none" : "visible"
         );
       }
       if (m.getLayer("points-raw-glow")) {
@@ -834,7 +941,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     return () => {
       m.off("load", apply);
     };
-  }, [heatmapEnabled, groupingEnabled, styleUrl]);
+  }, [heatmapEnabled, groupingEnabled, styleUrl, useIcons]);
 
   useEffect(() => {
     const m = mapRef.current;
@@ -1034,7 +1141,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           styleId={currentStyleId}
           onStyleId={(v) => setCurrentStyleId(v)}
           heatmapEnabled={heatmapEnabled}
-          onHeatmapEnabled={setHeatmapEnabled}
           onHeatmapSettingsOpen={() => setHeatmapSettingsOpen(true)}
           groupingEnabled={groupingEnabled}
           onGroupingEnabled={setGroupingEnabled}
@@ -1101,7 +1207,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                   styleId={currentStyleId}
                   onStyleId={(v) => setCurrentStyleId(v)}
                   heatmapEnabled={heatmapEnabled}
-                  onHeatmapEnabled={setHeatmapEnabled}
                   onHeatmapSettingsOpen={() => {
                     setHeatmapSettingsOpen(true);
                     setMobilePanel(null);
@@ -1136,6 +1241,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       <HeatmapSettingsPanel
         open={heatmapSettingsOpen}
         enabled={heatmapEnabled}
+        onEnabled={setHeatmapEnabled}
         settings={heatmapSettings}
         onSettings={setHeatmapSettings}
         onReset={() => setHeatmapSettings(DEFAULT_HEATMAP_SETTINGS)}
