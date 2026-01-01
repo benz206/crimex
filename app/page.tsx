@@ -1,4 +1,4 @@
-import { CrimeMap } from "@/app/components/CrimeMap";
+import { CrimeMap } from "@/components/CrimeMap";
 
 export default function Home() {
   return (

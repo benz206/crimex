@@ -39,7 +39,7 @@ pnpm dev
 ## Data sources
 
 - **Incidents (ArcGIS FeatureServer)**: `https://services2.arcgis.com/o1LYr96CpFkfsDJS/arcgis/rest/services/Crime_Map/FeatureServer/0`
-  - The app queries this client-side via `app/lib/arcgis.ts` (GeoJSON when supported, with an Esri JSON fallback).
+  - The app queries this client-side via `lib/arcgis.ts` (GeoJSON when supported, with an Esri JSON fallback).
 - **Basemaps + geocoding (MapTiler)**:
   - Basemap styles are fetched using your `NEXT_PUBLIC_MAPTILER_KEY`.
   - Search uses MapTiler’s geocoding API (Canada-scoped).
