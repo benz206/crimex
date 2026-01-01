@@ -8,6 +8,7 @@ import {
   type MapTilerStyleId,
 } from "@/app/lib/maptiler";
 import type { IncidentFilters } from "@/app/lib/types";
+import { formatCity, formatIncidentDescription } from "@/app/lib/incidentStyle";
 
 type Props = {
   styleId: MapTilerStyleId;
@@ -45,6 +46,7 @@ export function Filters({
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? "";
   const abortRef = useRef<AbortController | null>(null);
+  const searchWrapRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MapTilerGeocodeResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -77,11 +79,22 @@ export function Filters({
     };
   }, [query, maptilerKey]);
 
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const el = searchWrapRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown, { capture: true });
+    return () =>
+      window.removeEventListener("pointerdown", onDown, { capture: true });
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[15px] font-semibold text-white/95">
+          <div className="text-[25px] font-semibold text-white/95">
             Halton Crime
           </div>
           <div className="mt-1 text-[11px] leading-4 text-white/60">
@@ -125,23 +138,39 @@ export function Filters({
 
       <div className="flex items-center gap-2">
         <div className="text-[11px] text-white/60">Low</div>
-        <div className="h-2 flex-1 rounded-full ring-1 ring-white/10 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.45)] to-[rgba(255,255,255,0.9)]" />
+        <div className="h-2 flex-1 rounded-full ring-1 ring-white/10 bg-linear-to-r from-transparent via-[rgba(255,255,255,0.45)] to-[rgba(255,255,255,0.9)]" />
         <div className="text-[11px] text-white/60">High</div>
       </div>
 
-      <div className="relative">
+      <div ref={searchWrapRef} className="relative">
         <label className="flex flex-col gap-1">
           <span className="ui-label">Search</span>
-          <input
-            className="ui-input placeholder:text-white/35"
-            value={query}
-            placeholder="Search Halton address/place"
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-          />
+          <div className="relative">
+            <input
+              className="ui-input pr-10 placeholder:text-white/35"
+              value={query}
+              placeholder="Search Halton address/place"
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+            />
+            {query.length > 0 && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-sm text-white/70 hover:bg-white/10"
+                aria-label="Clear search"
+                onClick={() => {
+                  setQuery("");
+                  setResults([]);
+                  setOpen(false);
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
         </label>
         {open && results.length > 0 && (
           <div className="ui-panel-strong absolute z-10 mt-2 w-full overflow-hidden">
@@ -213,7 +242,7 @@ export function Filters({
           <option value="">All municipalities</option>
           {cities.map((c) => (
             <option key={c} value={c}>
-              {c}
+              {formatCity(c)}
             </option>
           ))}
         </select>
@@ -231,7 +260,7 @@ export function Filters({
           <option value="">All types</option>
           {descriptions.map((d) => (
             <option key={d} value={d}>
-              {d}
+              {formatIncidentDescription(d)}
             </option>
           ))}
         </select>

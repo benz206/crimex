@@ -613,7 +613,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="ui-panel absolute top-3 left-3 right-3 z-10 w-auto max-w-[360px] p-4 md:right-auto md:w-[360px]">
+      <div className="ui-panel absolute top-3 left-3 right-3 z-10 w-auto max-w-[400px] p-4 md:right-auto md:w-[400px]">
         <Filters
           styleId={currentStyleId}
           onStyleId={(v) => setCurrentStyleId(v)}

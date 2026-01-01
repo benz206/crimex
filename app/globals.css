@@ -13,13 +13,10 @@
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
   --accent: #50c8ff;
   --danger: #ff6ea0;
-}
-
-@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --radius-2xl: 1rem;
+  color-scheme: dark;
 }
 
 body {
@@ -30,35 +27,59 @@ body {
 }
 
 @layer components {
+  .ui-pop {
+    animation: ui-pop 180ms ease-out both;
+  }
+
   .ui-panel {
-    @apply rounded-3xl;
+    border-radius: 1rem;
     background: var(--surface);
     border: 1px solid var(--stroke);
     box-shadow: var(--shadow);
+    animation: ui-pop 180ms ease-out both;
+    transition: background-color 160ms ease, border-color 160ms ease,
+      box-shadow 160ms ease, transform 160ms ease;
   }
 
   .ui-panel-strong {
-    @apply rounded-3xl;
+    border-radius: 0.75rem;
     background: var(--surface-2);
     border: 1px solid var(--stroke);
     box-shadow: var(--shadow);
+    animation: ui-pop 180ms ease-out both;
+    transition: background-color 160ms ease, border-color 160ms ease,
+      box-shadow 160ms ease, transform 160ms ease;
   }
 
   .ui-title {
-    @apply text-xs font-semibold tracking-wide;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
     color: var(--muted);
   }
 
   .ui-label {
-    @apply text-[11px] font-medium;
+    font-size: 11px;
+    line-height: 1rem;
+    font-weight: 500;
     color: var(--muted-2);
   }
 
   .ui-input {
-    @apply h-10 w-full rounded-2xl px-3 text-sm outline-none;
+    height: 2.5rem;
+    width: 100%;
+    border-radius: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: none;
     background: rgba(255, 255, 255, 0.07);
     color: var(--foreground);
     border: 1px solid var(--stroke);
+    transition: background-color 140ms ease, border-color 140ms ease,
+      transform 140ms ease;
   }
 
   .ui-input:focus {
@@ -66,45 +87,108 @@ body {
   }
 
   .ui-select {
-    @apply h-10 w-full rounded-2xl px-3 text-sm outline-none;
+    height: 2.5rem;
+    width: 100%;
+    border-radius: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: none;
     background: rgba(255, 255, 255, 0.07);
     color: var(--foreground);
     border: 1px solid var(--stroke);
+    color-scheme: dark;
+    transition: background-color 140ms ease, border-color 140ms ease,
+      transform 140ms ease;
+  }
+
+  .ui-select:focus {
+    border-color: var(--stroke-strong);
+  }
+
+  .ui-select option {
+    background: #121214;
+    color: rgba(255, 255, 255, 0.92);
   }
 
   .ui-btn {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-medium outline-none;
+    display: inline-flex;
+    height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    outline: none;
     background: rgba(255, 255, 255, 0.07);
     color: var(--foreground);
     border: 1px solid var(--stroke);
+    transition: background-color 140ms ease, border-color 140ms ease,
+      transform 140ms ease;
   }
 
   .ui-btn:hover {
     background: rgba(255, 255, 255, 0.1);
   }
 
+  .ui-btn:active {
+    transform: scale(0.98);
+  }
+
   .ui-btn-primary {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold;
+    display: inline-flex;
+    height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 600;
     background: rgba(255, 255, 255, 0.95);
     color: rgba(0, 0, 0, 0.92);
+    transition: background-color 140ms ease, transform 140ms ease;
   }
 
   .ui-btn-primary:hover {
     background: rgba(255, 255, 255, 0.88);
   }
 
+  .ui-btn-primary:active {
+    transform: scale(0.98);
+  }
+
   .ui-card {
-    @apply rounded-2xl px-4 py-3 text-left;
+    border-radius: 0.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    text-align: left;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--stroke);
+    transition: background-color 140ms ease, border-color 140ms ease,
+      transform 140ms ease;
   }
 
   .ui-card:hover {
     background: rgba(255, 255, 255, 0.07);
   }
 
+  .ui-card:active {
+    transform: scale(0.995);
+  }
+
   .ui-divider {
-    @apply h-px w-full;
+    height: 1px;
+    width: 100%;
     background: rgba(255, 255, 255, 0.08);
   }
 }
@@ -123,7 +207,7 @@ body {
   background: rgba(18, 18, 20, 0.96) !important;
   color: rgba(255, 255, 255, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 18px !important;
+  border-radius: 12px !important;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65) !important;
   padding: 12px 12px !important;
   font-size: 12px !important;
@@ -137,4 +221,15 @@ body {
 .maplibregl-popup-close-button {
   color: rgba(255, 255, 255, 0.72) !important;
   padding: 6px 8px !important;
+}
+
+@keyframes ui-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -1,18 +1,17 @@
 "use client";
 
 import type { IncidentFeature } from "@/app/lib/types";
+import {
+  formatCity,
+  formatIncidentDate,
+  formatIncidentDescription,
+  getIncidentStyle,
+} from "@/app/lib/incidentStyle";
 
 type Props = {
   items: IncidentFeature[];
   onPick: (item: IncidentFeature) => void;
 };
-
-function formatDate(ms?: number) {
-  if (!ms) return "";
-  const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString();
-}
 
 export function Sidebar({ items, onPick }: Props) {
   return (
@@ -23,7 +22,7 @@ export function Sidebar({ items, onPick }: Props) {
         </div>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[15px] font-semibold text-white/95">
+            <div className="text-[25px] font-semibold text-white/95">
               Incidents
             </div>
             <div className="mt-1 text-[11px] leading-4 text-white/60">
@@ -42,18 +41,28 @@ export function Sidebar({ items, onPick }: Props) {
             <button
               key={String(f.properties.OBJECTID)}
               type="button"
-              className="ui-card"
+              className="ui-card relative overflow-hidden"
               onClick={() => onPick(f)}
             >
               <div className="text-[14px] font-semibold text-white/95">
-                {f.properties.DESCRIPTION ?? "Incident"}
+                {formatIncidentDescription(f.properties.DESCRIPTION) ||
+                  "Incident"}
               </div>
               <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/65">
-                <span className="truncate">{f.properties.CITY ?? ""}</span>
+                <span className="truncate">
+                  {formatCity(f.properties.CITY) || ""}
+                </span>
                 <span className="shrink-0">
-                  {formatDate(f.properties.DATE)}
+                  {formatIncidentDate(f.properties.DATE)}
                 </span>
               </div>
+              <div
+                className="absolute left-0 right-0 bottom-0 h-1"
+                style={{
+                  backgroundColor: getIncidentStyle(f.properties.DESCRIPTION)
+                    .color,
+                }}
+              />
             </button>
           ))}
         </div>
