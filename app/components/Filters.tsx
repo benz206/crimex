@@ -8,7 +8,6 @@ import {
   type MapTilerStyleId,
 } from "@/app/lib/maptiler";
 import type { IncidentFilters } from "@/app/lib/types";
-import { formatCity, formatIncidentDescription } from "@/app/lib/incidentStyle";
 
 type Props = {
   styleId: MapTilerStyleId;
@@ -17,8 +16,6 @@ type Props = {
   onHeatmapEnabled: (v: boolean) => void;
   filters: IncidentFilters;
   onFilters: (next: IncidentFilters) => void;
-  cities: string[];
-  descriptions: string[];
   onSearchPick: (center: [number, number], label: string) => void;
 };
 
@@ -29,19 +26,19 @@ export function Filters({
   onHeatmapEnabled,
   filters,
   onFilters,
-  cities,
-  descriptions,
   onSearchPick,
 }: Props) {
   const rangeValue = (() => {
     const start = filters.startMs;
     const end = filters.endMs;
-    if (typeof start !== "number" || typeof end !== "number") return "30d";
+    if (typeof start !== "number" || typeof end !== "number") return "all";
     const days = Math.round((end - start) / (24 * 60 * 60 * 1000));
     if (days <= 8) return "7d";
-    if (days <= 35) return "30d";
-    if (days <= 100) return "90d";
-    return "30d";
+    if (days <= 35) return "1m";
+    if (days <= 70) return "2m";
+    if (days <= 200) return "6m";
+    if (days <= 400) return "1y";
+    return "all";
   })();
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? "";
@@ -107,7 +104,7 @@ export function Filters({
           onClick={() => {
             const endMs = Date.now();
             const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-            onFilters({ startMs, endMs });
+            onFilters({ startMs, endMs, hideRoadTests: false });
             setQuery("");
             setOpen(false);
           }}
@@ -208,25 +205,40 @@ export function Filters({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="ui-label">Time window</span>
+        <span className="ui-label">Time Range</span>
         <select
           className="ui-select"
           value={rangeValue}
           onChange={(e) => {
             const v = e.target.value;
+            if (v === "all") {
+              const next = { ...filters };
+              delete next.startMs;
+              delete next.endMs;
+              onFilters(next);
+              return;
+            }
+
             const endMs = Date.now();
             const startMs =
               v === "7d"
                 ? endMs - 7 * 24 * 60 * 60 * 1000
-                : v === "90d"
-                ? endMs - 90 * 24 * 60 * 60 * 1000
+                : v === "2m"
+                ? endMs - 60 * 24 * 60 * 60 * 1000
+                : v === "6m"
+                ? endMs - 180 * 24 * 60 * 60 * 1000
+                : v === "1y"
+                ? endMs - 365 * 24 * 60 * 60 * 1000
                 : endMs - 30 * 24 * 60 * 60 * 1000;
             onFilters({ ...filters, startMs, endMs });
           }}
         >
-          <option value="7d">Last 7 days</option>
-          <option value="30d">Last 30 days</option>
-          <option value="90d">Last 90 days</option>
+          <option value="7d">7 days</option>
+          <option value="1m">1 month</option>
+          <option value="2m">2 months</option>
+          <option value="6m">6 months</option>
+          <option value="1y">1 year</option>
+          <option value="all">All</option>
         </select>
       </label>
 
@@ -239,17 +251,18 @@ export function Filters({
             onFilters({ ...filters, city: e.target.value || undefined })
           }
         >
-          <option value="">All municipalities</option>
-          {cities.map((c) => (
-            <option key={c} value={c}>
-              {formatCity(c)}
-            </option>
-          ))}
+          <option value="">All</option>
+          <option value="ACTON">Acton</option>
+          <option value="BURLINGTON">Burlington</option>
+          <option value="GEORGETOWN">Georgetown</option>
+          <option value="HALTON HILLS">Halton Hills</option>
+          <option value="MILTON">Milton</option>
+          <option value="OAKVILLE">Oakville</option>
         </select>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="ui-label">Incident type</span>
+        <span className="ui-label">Incident / Crime Types</span>
         <select
           className="ui-select"
           value={filters.description ?? ""}
@@ -257,14 +270,69 @@ export function Filters({
             onFilters({ ...filters, description: e.target.value || undefined })
           }
         >
-          <option value="">All types</option>
-          {descriptions.map((d) => (
-            <option key={d} value={d}>
-              {formatIncidentDescription(d)}
-            </option>
-          ))}
+          <option value="">All</option>
+          <option value=" ARSON">Arson</option>
+          <option value=" ATTEMPT MURDER">Attempt Murder</option>
+          <option value=" BREAK AND ENTER HOUSE">
+            Break and Enter – House
+          </option>
+          <option value=" BREAK AND ENTER OTHER">
+            Break and Enter – Other
+          </option>
+          <option value=" BREAK AND ENTER SCHOOL">
+            Break and Enter – School
+          </option>
+          <option value=" BREAK AND ENTER SHOP">Break and Enter – Shop</option>
+          <option value=" DANGEROUS OPERATION TRAFFIC">
+            Dangerous Operation – Traffic
+          </option>
+          <option value=" FEDERAL STATS DRUGS">Federal Stats – Drugs</option>
+          <option value=" HOMICIDE">Homicide</option>
+          <option value=" IMPAIRED DRIVING">Impaired Driving</option>
+          <option value=" MVC FATALITY">MVC – Fatality</option>
+          <option value=" MVC HIT & RUN">MVC – Hit & Run</option>
+          <option value=" MVC PI">MVC – PI</option>
+          <option value=" OFFENSIVE WEAPONS">Offensive Weapons</option>
+          <option value=" PROPERTY DAMAGE OVER $5,000">
+            Property Damage Over $5,000
+          </option>
+          <option value=" PROPERTY DAMAGE UNDER $5,000">
+            Property Damage Under $5,000
+          </option>
+          <option value=" RECOVERED VEHICLE OTHER SERVICE">
+            Recovered Vehicle – Other Service
+          </option>
+          <option value=" ROADSIDE TEST">Roadside Test</option>
+          <option value=" ROBBERY">Robbery</option>
+          <option value=" THEFT FROM AUTO">Theft From Auto</option>
+          <option value=" THEFT OF BICYCLE">Theft of Bicycle</option>
+          <option value=" THEFT OF VEHICLE">Theft of Vehicle</option>
+          <option value=" THEFT OVER">Theft Over</option>
+          <option value=" THEFT UNDER">Theft Under</option>
         </select>
       </label>
+
+      <div className="ui-card">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="ui-checkbox mt-0.5"
+            checked={Boolean(filters.hideRoadTests)}
+            onChange={(e) =>
+              onFilters({ ...filters, hideRoadTests: e.target.checked })
+            }
+          />
+          <span className="min-w-0">
+            <div className="text-[13px] font-semibold text-white/90">
+              Hide Roadside Tests
+            </div>
+            <div className="mt-0.5 text-[11px] leading-4 text-white/60">
+              Roadside tests are police screening checks and aren’t necessarily a
+              reported incident.
+            </div>
+          </span>
+        </label>
+      </div>
     </div>
   );
 }

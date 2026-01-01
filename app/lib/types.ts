@@ -25,6 +25,7 @@ export type IncidentFilters = {
   endMs?: number;
   city?: string;
   description?: string;
+  hideRoadTests?: boolean;
 };
 
 

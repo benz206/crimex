@@ -93,6 +93,11 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
     clauses.push(`DESCRIPTION = '${escapeSqlString(filters.description)}'`);
   }
 
+  if (filters.hideRoadTests) {
+    clauses.push(`DESCRIPTION <> ' ROADSIDE TEST'`);
+    clauses.push(`DESCRIPTION <> 'ROADSIDE TEST'`);
+  }
+
   return clauses.join(" AND ");
 }
 

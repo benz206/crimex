@@ -529,24 +529,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     );
   }
 
-  const cities = Array.from(
-    new Set(
-      incidents.features
-        .map((f) => f.properties.CITY as string | undefined)
-        .filter((x): x is string => !!x && x.trim().length > 0)
-        .map((x) => x.trim())
-    )
-  ).sort((a, b) => a.localeCompare(b));
-
-  const descriptions = Array.from(
-    new Set(
-      incidents.features
-        .map((f) => f.properties.DESCRIPTION as string | undefined)
-        .filter((x): x is string => !!x && x.trim().length > 0)
-        .map((x) => x.trim())
-    )
-  ).sort((a, b) => a.localeCompare(b));
-
   const sortedForSidebar: IncidentFeature[] = [...incidents.features].sort(
     (a, b) => {
       const ad = Number(a.properties.DATE ?? 0);
@@ -621,8 +603,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           onHeatmapEnabled={setHeatmapEnabled}
           filters={filters}
           onFilters={setFilters}
-          cities={cities}
-          descriptions={descriptions}
           onSearchPick={onSearchPick}
         />
       </div>
