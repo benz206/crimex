@@ -242,8 +242,11 @@ export function Filters({
       <label className="flex flex-col gap-1">
         <span className="ui-label">Municipality</span>
         <CustomSelect
-          value={filters.city ?? ""}
-          onValue={(v) => onFilters({ ...filters, city: v || undefined })}
+          multiple
+          value={filters.city ?? []}
+          onValue={(v) =>
+            onFilters({ ...filters, city: v.length ? v : undefined })
+          }
           options={[
             { value: "", label: "All" },
             { value: "ACTON", label: "Acton" },
@@ -259,9 +262,10 @@ export function Filters({
       <label className="flex flex-col gap-1">
         <span className="ui-label">Incident / Crime Types</span>
         <CustomSelect
-          value={filters.description ?? ""}
+          multiple
+          value={filters.description ?? []}
           onValue={(v) =>
-            onFilters({ ...filters, description: v || undefined })
+            onFilters({ ...filters, description: v.length ? v : undefined })
           }
           menuClassName="max-h-[22rem]"
           options={[

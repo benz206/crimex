@@ -85,12 +85,26 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
     clauses.push(`DATE <= ${formatTorontoSqlTimestamp(filters.endMs)}`);
   }
 
-  if (filters.city) {
-    clauses.push(`CITY = '${escapeSqlString(filters.city)}'`);
+  const cities = (filters.city ?? []).filter((x) => typeof x === "string" && x.trim());
+  if (cities.length === 1) {
+    clauses.push(`CITY = '${escapeSqlString(cities[0]!.trim())}'`);
+  } else if (cities.length > 1) {
+    clauses.push(
+      `CITY IN (${cities.map((c) => `'${escapeSqlString(c.trim())}'`).join(",")})`,
+    );
   }
 
-  if (filters.description) {
-    clauses.push(`DESCRIPTION = '${escapeSqlString(filters.description)}'`);
+  const descriptions = (filters.description ?? []).filter(
+    (x) => typeof x === "string" && x.trim(),
+  );
+  if (descriptions.length === 1) {
+    clauses.push(`DESCRIPTION = '${escapeSqlString(descriptions[0]!.trim())}'`);
+  } else if (descriptions.length > 1) {
+    clauses.push(
+      `DESCRIPTION IN (${descriptions
+        .map((d) => `'${escapeSqlString(d.trim())}'`)
+        .join(",")})`,
+    );
   }
 
   if (filters.hideRoadTests) {

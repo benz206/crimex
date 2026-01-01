@@ -23,8 +23,8 @@ export type IncidentFeatureCollection = GeoJSON.FeatureCollection<
 export type IncidentFilters = {
   startMs?: number;
   endMs?: number;
-  city?: string;
-  description?: string;
+  city?: string[];
+  description?: string[];
   hideRoadTests?: boolean;
 };
 

@@ -15,7 +15,8 @@ export type CustomSelectOption = {
   disabled?: boolean;
 };
 
-type Props = {
+type SingleProps = {
+  multiple?: false;
   value: string;
   onValue: (v: string) => void;
   options: CustomSelectOption[];
@@ -24,7 +25,20 @@ type Props = {
   menuClassName?: string;
 };
 
+type MultiProps = {
+  multiple: true;
+  value: string[];
+  onValue: (v: string[]) => void;
+  options: CustomSelectOption[];
+  className?: string;
+  buttonClassName?: string;
+  menuClassName?: string;
+};
+
+type Props = SingleProps | MultiProps;
+
 export function CustomSelect({
+  multiple,
   value,
   onValue,
   options,
@@ -40,17 +54,27 @@ export function CustomSelect({
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState<number>(() =>
-    Math.max(
-      0,
-      options.findIndex((o) => o.value === value)
-    )
-  );
+  const [activeIndex, setActiveIndex] = useState<number>(() => {
+    const first = options.findIndex((o) => !o.disabled);
+    const fallback = first >= 0 ? first : 0;
+    if (multiple) return fallback;
+    return Math.max(0, options.findIndex((o) => o.value === value));
+  });
 
-  const selected = useMemo(
-    () => options.find((o) => o.value === value),
-    [options, value]
-  );
+  const selectedLabel = useMemo(() => {
+    if (multiple) {
+      const vals = new Set(Array.isArray(value) ? value : []);
+      const allOpt = options.find((o) => o.value === "");
+      const picked = options.filter((o) => o.value !== "" && vals.has(o.value));
+      if (picked.length === 0) return allOpt?.label ?? "";
+      if (picked.length === 1) return picked[0]?.label ?? "";
+      const labels = picked.map((p) => p.label);
+      if (labels.every((x) => typeof x === "string")) return (labels as string[]).join(", ");
+      return `${picked.length} selected`;
+    }
+
+    return options.find((o) => o.value === value)?.label ?? "";
+  }, [multiple, options, value]);
 
   const firstEnabledIndex = useMemo(() => {
     const i = options.findIndex((o) => !o.disabled);
@@ -89,6 +113,10 @@ export function CustomSelect({
   }, [open, activeIndex]);
 
   const syncActiveToValue = () => {
+    if (multiple) {
+      setActiveIndex(firstEnabledIndex);
+      return;
+    }
     const i = options.findIndex((o) => o.value === value);
     setActiveIndex(i >= 0 ? i : firstEnabledIndex);
   };
@@ -113,6 +141,20 @@ export function CustomSelect({
   const commit = (i: number) => {
     const opt = options[i];
     if (!opt || opt.disabled) return;
+
+    if (multiple) {
+      const current = Array.isArray(value) ? value : [];
+      if (opt.value === "") {
+        onValue([]);
+        return;
+      }
+      const next = current.includes(opt.value)
+        ? current.filter((x) => x !== opt.value)
+        : [...current, opt.value];
+      onValue(next);
+      return;
+    }
+
     onValue(opt.value);
     setOpen(false);
     btnRef.current?.focus();
@@ -146,7 +188,7 @@ export function CustomSelect({
         }}
       >
         <span className="min-w-0 flex-1 truncate text-left">
-          {selected?.label ?? ""}
+          {selectedLabel}
         </span>
         <span aria-hidden className="ui-cselect__chev">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
@@ -164,9 +206,13 @@ export function CustomSelect({
           role="listbox"
           id={listboxId}
           aria-activedescendant={`${id}-opt-${activeIndex}`}
+          aria-multiselectable={multiple ? true : undefined}
         >
           {options.map((o, i) => {
-            const isSelected = o.value === value;
+            const isSelected = multiple
+              ? (Array.isArray(value) && value.includes(o.value)) ||
+                (o.value === "" && Array.isArray(value) && value.length === 0)
+              : o.value === value;
             const isActive = i === activeIndex;
             return (
               <button
@@ -217,9 +263,13 @@ export function CustomSelect({
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     commit(i);
+                    if (!multiple) return;
                   }
                 }}
-                onClick={() => commit(i)}
+                onClick={() => {
+                  commit(i);
+                  if (!multiple) return;
+                }}
               >
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {isSelected && (
