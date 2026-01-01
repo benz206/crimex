@@ -169,6 +169,11 @@ body {
     overflow: auto;
   }
 
+  .ui-cselect-menu--up {
+    top: auto;
+    bottom: calc(100% + 0.5rem);
+  }
+
   .ui-cselect-option {
     width: 100%;
     display: flex;

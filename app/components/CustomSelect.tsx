@@ -51,9 +51,11 @@ export function CustomSelect({
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"down" | "up">("down");
   const [activeIndex, setActiveIndex] = useState<number>(() => {
     const first = options.findIndex((o) => !o.disabled);
     const fallback = first >= 0 ? first : 0;
@@ -115,6 +117,34 @@ export function CustomSelect({
     }, 0);
     return () => clearTimeout(t);
   }, [open, activeIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const compute = () => {
+      const btn = btnRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const menuH =
+        menuRef.current?.getBoundingClientRect().height ||
+        Math.min(320, Math.max(160, options.length * 36));
+      const margin = 12;
+      const spaceBelow = window.innerHeight - r.bottom - margin;
+      const spaceAbove = r.top - margin;
+      setPlacement(
+        spaceBelow < menuH && spaceAbove > spaceBelow ? "up" : "down"
+      );
+    };
+
+    const t = setTimeout(compute, 0);
+    window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, { capture: true });
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, { capture: true });
+    };
+  }, [open, options.length]);
 
   const syncActiveToValue = () => {
     if (multiple) {
@@ -206,7 +236,10 @@ export function CustomSelect({
 
       {open && (
         <div
-          className={`ui-panel-strong ui-cselect-menu ${menuClassName ?? ""}`}
+          ref={menuRef}
+          className={`ui-panel-strong ui-cselect-menu ${
+            placement === "up" ? "ui-cselect-menu--up" : ""
+          } ${menuClassName ?? ""}`}
           role="listbox"
           id={listboxId}
           aria-activedescendant={`${id}-opt-${activeIndex}`}

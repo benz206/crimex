@@ -405,10 +405,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       touchPitch: true,
     });
 
-    map.addControl(
-      new maplibregl.NavigationControl({ visualizePitch: true }),
-      "top-right"
-    );
     mapRef.current = map;
 
     map.on("load", () => {
@@ -860,6 +856,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
     const apply = () => {
       if (!m.getLayer("heatmap") || !m.getLayer("heatmap-outline")) return;
+      const pointRadius = useIcons ? 10 : 5;
+      const pointStroke = useIcons ? 1.6 : 1.25;
       m.setLayoutProperty(
         "heatmap-outline",
         "visibility",
@@ -895,6 +893,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         "visibility",
         heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
+      if (m.getLayer("points")) {
+        m.setPaintProperty("points", "circle-radius", pointRadius);
+        m.setPaintProperty("points", "circle-stroke-width", pointStroke);
+      }
       if (m.getLayer("points-icons")) {
         m.setLayoutProperty(
           "points-icons",
@@ -915,6 +917,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           "visibility",
           heatmapEnabled || groupingEnabled ? "none" : "visible"
         );
+        m.setPaintProperty("points-raw", "circle-radius", pointRadius);
+        m.setPaintProperty("points-raw", "circle-stroke-width", pointStroke);
       }
       if (m.getLayer("points-raw-icons")) {
         m.setLayoutProperty(
@@ -1152,7 +1156,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         />
       </div>
 
-      <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 hidden h-[42dvh] w-auto overflow-hidden md:block md:top-3 md:right-11 md:bottom-auto md:left-auto md:h-[calc(100%-20px)] md:w-[400px]">
+      <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 hidden h-[42dvh] w-auto overflow-hidden md:block md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-54px)] md:w-[400px]">
         <Sidebar items={incidents.features} onPick={flyToIncident} />
       </div>
 

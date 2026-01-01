@@ -104,9 +104,6 @@ export function Filters({
           <div className="text-[25px] font-semibold text-white/95">
             Halton Crime
           </div>
-          <div className="mt-1 text-[11px] leading-4 text-white/60">
-            Filter incidents and switch between heatmap density and points.
-          </div>
         </div>
         <button
           type="button"
@@ -129,7 +126,7 @@ export function Filters({
         <div className="min-w-0">
           <div className="ui-title">Heatmap</div>
           <div className="mt-1 text-[11px] leading-4 text-white/60">
-            View incident density and adjust smoothing, intensity, and opacity.
+            View heatmap data.
           </div>
         </div>
         <button
@@ -180,12 +177,6 @@ export function Filters({
             </div>
           </span>
         </label>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <div className="text-[11px] text-white/60">Low</div>
-        <div className="h-2 flex-1 rounded-full ring-1 ring-white/10 bg-linear-to-r from-transparent via-[rgba(255,255,255,0.45)] to-[rgba(255,255,255,0.9)]" />
-        <div className="text-[11px] text-white/60">High</div>
       </div>
 
       <div ref={searchWrapRef} className="relative">
