@@ -124,6 +124,83 @@ body {
     color: rgba(255, 255, 255, 0.92);
   }
 
+  .ui-cselect {
+    height: 2.5rem;
+    width: 100%;
+    border-radius: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: none;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--foreground);
+    border: 1px solid var(--stroke);
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease,
+      transform 140ms ease;
+  }
+
+  .ui-cselect:focus {
+    border-color: var(--stroke-strong);
+  }
+
+  .ui-cselect:active {
+    transform: scale(0.99);
+  }
+
+  .ui-cselect__chev {
+    flex: 0 0 auto;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .ui-cselect-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    z-index: 40;
+    padding: 0.25rem;
+    max-height: 20rem;
+    overflow: auto;
+  }
+
+  .ui-cselect-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    color: rgba(255, 255, 255, 0.92);
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .ui-cselect-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .ui-cselect-option--active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .ui-cselect-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .ui-cselect-option__check {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
   .ui-btn {
     display: inline-flex;
     height: 2.5rem;

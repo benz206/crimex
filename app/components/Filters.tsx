@@ -8,6 +8,7 @@ import {
   type MapTilerStyleId,
 } from "@/app/lib/maptiler";
 import type { IncidentFilters } from "@/app/lib/types";
+import { CustomSelect } from "@/app/components/CustomSelect";
 
 type Props = {
   styleId: MapTilerStyleId;
@@ -191,26 +192,21 @@ export function Filters({
 
       <label className="flex flex-col gap-1">
         <span className="ui-label">Basemap</span>
-        <select
-          className="ui-select"
+        <CustomSelect
           value={String(styleId)}
-          onChange={(e) => onStyleId(e.target.value)}
-        >
-          {STYLE_CHOICES.map((s) => (
-            <option key={String(s.id)} value={String(s.id)}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          onValue={(v) => onStyleId(v)}
+          options={STYLE_CHOICES.map((s) => ({
+            value: String(s.id),
+            label: s.label,
+          }))}
+        />
       </label>
 
       <label className="flex flex-col gap-1">
         <span className="ui-label">Time Range</span>
-        <select
-          className="ui-select"
+        <CustomSelect
           value={rangeValue}
-          onChange={(e) => {
-            const v = e.target.value;
+          onValue={(v) => {
             if (v === "all") {
               const next = { ...filters };
               delete next.startMs;
@@ -232,84 +228,91 @@ export function Filters({
                 : endMs - 30 * 24 * 60 * 60 * 1000;
             onFilters({ ...filters, startMs, endMs });
           }}
-        >
-          <option value="7d">7 days</option>
-          <option value="1m">1 month</option>
-          <option value="2m">2 months</option>
-          <option value="6m">6 months</option>
-          <option value="1y">1 year</option>
-          <option value="all">All</option>
-        </select>
+          options={[
+            { value: "7d", label: "7 days" },
+            { value: "1m", label: "1 month" },
+            { value: "2m", label: "2 months" },
+            { value: "6m", label: "6 months" },
+            { value: "1y", label: "1 year" },
+            { value: "all", label: "All" },
+          ]}
+        />
       </label>
 
       <label className="flex flex-col gap-1">
         <span className="ui-label">Municipality</span>
-        <select
-          className="ui-select"
+        <CustomSelect
           value={filters.city ?? ""}
-          onChange={(e) =>
-            onFilters({ ...filters, city: e.target.value || undefined })
-          }
-        >
-          <option value="">All</option>
-          <option value="ACTON">Acton</option>
-          <option value="BURLINGTON">Burlington</option>
-          <option value="GEORGETOWN">Georgetown</option>
-          <option value="HALTON HILLS">Halton Hills</option>
-          <option value="MILTON">Milton</option>
-          <option value="OAKVILLE">Oakville</option>
-        </select>
+          onValue={(v) => onFilters({ ...filters, city: v || undefined })}
+          options={[
+            { value: "", label: "All" },
+            { value: "ACTON", label: "Acton" },
+            { value: "BURLINGTON", label: "Burlington" },
+            { value: "GEORGETOWN", label: "Georgetown" },
+            { value: "HALTON HILLS", label: "Halton Hills" },
+            { value: "MILTON", label: "Milton" },
+            { value: "OAKVILLE", label: "Oakville" },
+          ]}
+        />
       </label>
 
       <label className="flex flex-col gap-1">
         <span className="ui-label">Incident / Crime Types</span>
-        <select
-          className="ui-select"
+        <CustomSelect
           value={filters.description ?? ""}
-          onChange={(e) =>
-            onFilters({ ...filters, description: e.target.value || undefined })
+          onValue={(v) =>
+            onFilters({ ...filters, description: v || undefined })
           }
-        >
-          <option value="">All</option>
-          <option value=" ARSON">Arson</option>
-          <option value=" ATTEMPT MURDER">Attempt Murder</option>
-          <option value=" BREAK AND ENTER HOUSE">
-            Break and Enter – House
-          </option>
-          <option value=" BREAK AND ENTER OTHER">
-            Break and Enter – Other
-          </option>
-          <option value=" BREAK AND ENTER SCHOOL">
-            Break and Enter – School
-          </option>
-          <option value=" BREAK AND ENTER SHOP">Break and Enter – Shop</option>
-          <option value=" DANGEROUS OPERATION TRAFFIC">
-            Dangerous Operation – Traffic
-          </option>
-          <option value=" FEDERAL STATS DRUGS">Federal Stats – Drugs</option>
-          <option value=" HOMICIDE">Homicide</option>
-          <option value=" IMPAIRED DRIVING">Impaired Driving</option>
-          <option value=" MVC FATALITY">MVC – Fatality</option>
-          <option value=" MVC HIT & RUN">MVC – Hit & Run</option>
-          <option value=" MVC PI">MVC – PI</option>
-          <option value=" OFFENSIVE WEAPONS">Offensive Weapons</option>
-          <option value=" PROPERTY DAMAGE OVER $5,000">
-            Property Damage Over $5,000
-          </option>
-          <option value=" PROPERTY DAMAGE UNDER $5,000">
-            Property Damage Under $5,000
-          </option>
-          <option value=" RECOVERED VEHICLE OTHER SERVICE">
-            Recovered Vehicle – Other Service
-          </option>
-          <option value=" ROADSIDE TEST">Roadside Test</option>
-          <option value=" ROBBERY">Robbery</option>
-          <option value=" THEFT FROM AUTO">Theft From Auto</option>
-          <option value=" THEFT OF BICYCLE">Theft of Bicycle</option>
-          <option value=" THEFT OF VEHICLE">Theft of Vehicle</option>
-          <option value=" THEFT OVER">Theft Over</option>
-          <option value=" THEFT UNDER">Theft Under</option>
-        </select>
+          menuClassName="max-h-[22rem]"
+          options={[
+            { value: "", label: "All" },
+            { value: " ARSON", label: "Arson" },
+            { value: " ATTEMPT MURDER", label: "Attempt Murder" },
+            {
+              value: " BREAK AND ENTER HOUSE",
+              label: "Break and Enter – House",
+            },
+            {
+              value: " BREAK AND ENTER OTHER",
+              label: "Break and Enter – Other",
+            },
+            {
+              value: " BREAK AND ENTER SCHOOL",
+              label: "Break and Enter – School",
+            },
+            { value: " BREAK AND ENTER SHOP", label: "Break and Enter – Shop" },
+            {
+              value: " DANGEROUS OPERATION TRAFFIC",
+              label: "Dangerous Operation – Traffic",
+            },
+            { value: " FEDERAL STATS DRUGS", label: "Federal Stats – Drugs" },
+            { value: " HOMICIDE", label: "Homicide" },
+            { value: " IMPAIRED DRIVING", label: "Impaired Driving" },
+            { value: " MVC FATALITY", label: "MVC – Fatality" },
+            { value: " MVC HIT & RUN", label: "MVC – Hit & Run" },
+            { value: " MVC PI", label: "MVC – PI" },
+            { value: " OFFENSIVE WEAPONS", label: "Offensive Weapons" },
+            {
+              value: " PROPERTY DAMAGE OVER $5,000",
+              label: "Property Damage Over $5,000",
+            },
+            {
+              value: " PROPERTY DAMAGE UNDER $5,000",
+              label: "Property Damage Under $5,000",
+            },
+            {
+              value: " RECOVERED VEHICLE OTHER SERVICE",
+              label: "Recovered Vehicle – Other Service",
+            },
+            { value: " ROADSIDE TEST", label: "Roadside Test" },
+            { value: " ROBBERY", label: "Robbery" },
+            { value: " THEFT FROM AUTO", label: "Theft From Auto" },
+            { value: " THEFT OF BICYCLE", label: "Theft of Bicycle" },
+            { value: " THEFT OF VEHICLE", label: "Theft of Vehicle" },
+            { value: " THEFT OVER", label: "Theft Over" },
+            { value: " THEFT UNDER", label: "Theft Under" },
+          ]}
+        />
       </label>
 
       <div className="ui-card">

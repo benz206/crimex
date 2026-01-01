@@ -97,6 +97,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
   const filtersRef = useRef<IncidentFilters>({});
+  const [loadingCount, setLoadingCount] = useState(0);
+  const [mobilePanel, setMobilePanel] = useState<
+    "filters" | "incidents" | null
+  >(null);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [currentStyleId, setCurrentStyleId] =
     useState<MapTilerStyleId>(styleId);
@@ -116,6 +120,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     return mapTilerStyleUrl(currentStyleId, maptilerKey);
   }, [maptilerKey, currentStyleId]);
 
+  const isLoading = loadingCount > 0;
+  const startLoading = () => setLoadingCount((c) => c + 1);
+  const stopLoading = () => setLoadingCount((c) => Math.max(0, c - 1));
+  const isAbortError = (e: unknown) =>
+    e instanceof DOMException && e.name === "AbortError";
+
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
@@ -124,6 +134,13 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     if (!containerRef.current) return;
     if (!styleUrl) return;
 
+    startLoading();
+    let didStop = false;
+    const stopOnce = () => {
+      if (didStop) return;
+      didStop = true;
+      stopLoading();
+    };
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: styleUrl,
@@ -141,6 +158,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     mapRef.current = map;
 
     map.on("load", () => {
+      stopOnce();
       map.addSource("incidents", {
         type: "geojson",
         data: {
@@ -401,16 +419,25 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         north: b.getNorth(),
       };
 
-      const data = await fetchIncidentsGeoJSON({
-        bbox,
-        filters: filtersRef.current,
-        signal: ac.signal,
-      });
+      startLoading();
+      try {
+        const data = await fetchIncidentsGeoJSON({
+          bbox,
+          filters: filtersRef.current,
+          signal: ac.signal,
+        });
 
-      const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
-      const next = decorateIncidents(data, filtersRef.current);
-      src.setData(next);
-      setIncidents(next);
+        const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
+        const next = decorateIncidents(data, filtersRef.current);
+        src.setData(next);
+        setIncidents(next);
+      } catch (e) {
+        if (!isAbortError(e)) {
+          setIncidents((prev) => prev);
+        }
+      } finally {
+        stopLoading();
+      }
     };
 
     const onMoveEnd = () => {
@@ -421,6 +448,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     map.on("load", onMoveEnd);
 
     return () => {
+      stopOnce();
       abortRef.current?.abort();
       abortRef.current = null;
       popupRef.current?.remove();
@@ -568,15 +596,24 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     };
 
     void (async () => {
-      const data = await fetchIncidentsGeoJSON({
-        bbox,
-        filters,
-        signal: ac.signal,
-      });
-      const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
-      const next = decorateIncidents(data, filters);
-      src.setData(next);
-      setIncidents(next);
+      startLoading();
+      try {
+        const data = await fetchIncidentsGeoJSON({
+          bbox,
+          filters,
+          signal: ac.signal,
+        });
+        const src = m.getSource("incidents") as maplibregl.GeoJSONSource;
+        const next = decorateIncidents(data, filters);
+        src.setData(next);
+        setIncidents(next);
+      } catch (e) {
+        if (!isAbortError(e)) {
+          setIncidents((prev) => prev);
+        }
+      } finally {
+        stopLoading();
+      }
     })();
 
     return () => {
@@ -640,7 +677,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="ui-panel absolute top-3 left-3 right-3 z-10 w-auto max-w-[400px] p-4 md:right-auto md:w-[400px]">
+      <div className="ui-panel absolute top-3 left-3 right-3 z-10 hidden w-auto max-w-[400px] p-4 md:block md:right-auto md:w-[400px]">
         <Filters
           styleId={currentStyleId}
           onStyleId={(v) => setCurrentStyleId(v)}
@@ -652,9 +689,93 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         />
       </div>
 
-      <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 h-[42dvh] w-auto overflow-hidden md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-24px)] md:w-[400px]">
+      <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 hidden h-[42dvh] w-auto overflow-hidden md:block md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-24px)] md:w-[400px]">
         <Sidebar items={incidents.features} onPick={flyToIncident} />
       </div>
+
+      <div className="fixed right-3 bottom-3 z-20 flex flex-col gap-2 md:hidden">
+        <button
+          type="button"
+          className={mobilePanel === "filters" ? "ui-btn-primary" : "ui-btn"}
+          onClick={() =>
+            setMobilePanel((p) => (p === "filters" ? null : "filters"))
+          }
+        >
+          {mobilePanel === "filters" ? "Close Filters" : "Filters"}
+        </button>
+        <button
+          type="button"
+          className={mobilePanel === "incidents" ? "ui-btn-primary" : "ui-btn"}
+          onClick={() =>
+            setMobilePanel((p) => (p === "incidents" ? null : "incidents"))
+          }
+        >
+          {mobilePanel === "incidents"
+            ? "Close Incidents"
+            : `Incidents (${incidents.features.length})`}
+        </button>
+      </div>
+
+      {mobilePanel !== null && (
+        <div
+          className="fixed inset-0 z-30 bg-black/55 md:hidden"
+          onClick={() => setMobilePanel(null)}
+        >
+          <div
+            className="ui-panel absolute top-3 right-3 bottom-3 left-3 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+              <div className="text-sm font-semibold text-white/90">
+                {mobilePanel === "filters" ? "Filters" : "Incidents"}
+              </div>
+              <button
+                type="button"
+                className="ui-btn h-9 px-3 text-[13px]"
+                onClick={() => setMobilePanel(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="ui-divider mx-4" />
+            <div className="h-[calc(100%-64px)] overflow-auto p-4">
+              {mobilePanel === "filters" ? (
+                <Filters
+                  styleId={currentStyleId}
+                  onStyleId={(v) => setCurrentStyleId(v)}
+                  heatmapEnabled={heatmapEnabled}
+                  onHeatmapEnabled={setHeatmapEnabled}
+                  filters={filters}
+                  onFilters={setFilters}
+                  onSearchPick={(center, label) => {
+                    onSearchPick(center, label);
+                    setMobilePanel(null);
+                  }}
+                />
+              ) : (
+                <div className="h-full overflow-hidden">
+                  <Sidebar
+                    items={incidents.features}
+                    onPick={(f) => {
+                      flyToIncident(f);
+                      setMobilePanel(null);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="pointer-events-none fixed left-3 bottom-3 z-40 md:left-3 md:bottom-3">
+          <div className="ui-panel-strong inline-flex items-center gap-2 px-3 py-2 text-[12px] text-white/85">
+            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+            <span>Updating…</span>
+          </div>
+        </div>
+      )}
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );

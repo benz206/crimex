@@ -8,6 +8,7 @@ import {
   getIncidentStyle,
 } from "@/app/lib/incidentStyle";
 import { useMemo, useState } from "react";
+import { CustomSelect } from "@/app/components/CustomSelect";
 
 type Props = {
   items: IncidentFeature[];
@@ -90,40 +91,42 @@ export function Sidebar({ items, onPick }: Props) {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">
             <span className="ui-label">Sort</span>
-            <select
-              className="ui-select h-9 text-[13px]"
+            <CustomSelect
               value={sortKey}
-              onChange={(e) => {
-                setSortKey(e.target.value as typeof sortKey);
+              onValue={(v) => {
+                setSortKey(v as typeof sortKey);
                 setPage(1);
               }}
-            >
-              <option value="date_desc">Date (newest)</option>
-              <option value="date_asc">Date (oldest)</option>
-              <option value="city_asc">City (A–Z)</option>
-              <option value="city_desc">City (Z–A)</option>
-              <option value="type_asc">Type (A–Z)</option>
-              <option value="type_desc">Type (Z–A)</option>
-              <option value="category_asc">Category (A–Z)</option>
-              <option value="category_desc">Category (Z–A)</option>
-            </select>
+              buttonClassName="h-9 text-[13px]"
+              options={[
+                { value: "date_desc", label: "Date (newest)" },
+                { value: "date_asc", label: "Date (oldest)" },
+                { value: "city_asc", label: "City (A–Z)" },
+                { value: "city_desc", label: "City (Z–A)" },
+                { value: "type_asc", label: "Type (A–Z)" },
+                { value: "type_desc", label: "Type (Z–A)" },
+                { value: "category_asc", label: "Category (A–Z)" },
+                { value: "category_desc", label: "Category (Z–A)" },
+              ]}
+            />
           </label>
 
           <label className="flex flex-col gap-1">
             <span className="ui-label">Per page</span>
-            <select
-              className="ui-select h-9 text-[13px]"
+            <CustomSelect
               value={String(pageSize)}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value) || 25);
+              onValue={(v) => {
+                setPageSize(Number(v) || 25);
                 setPage(1);
               }}
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+              buttonClassName="h-9 text-[13px]"
+              options={[
+                { value: "10", label: "10" },
+                { value: "25", label: "25" },
+                { value: "50", label: "50" },
+                { value: "100", label: "100" },
+              ]}
+            />
           </label>
         </div>
       </div>
