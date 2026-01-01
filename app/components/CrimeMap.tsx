@@ -357,6 +357,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   );
   const heatmapSettingsRef = useRef<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [useIcons, setUseIcons] = useState(true);
+  const [activeHelpOpen, setActiveHelpOpen] = useState(false);
   const [currentStyleId, setCurrentStyleId] =
     useState<MapTilerStyleId>(styleId);
   const [filters, setFilters] = useState<IncidentFilters>(
@@ -1188,10 +1189,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           onStyleId={(v) => setCurrentStyleId(v)}
           heatmapEnabled={heatmapEnabled}
           onHeatmapSettingsOpen={() => setHeatmapSettingsOpen(true)}
-          groupingEnabled={groupingEnabled}
-          onGroupingEnabled={setGroupingEnabled}
-          useIcons={useIcons}
-          onUseIcons={setUseIcons}
           filters={filters}
           onFilters={setFilters}
           onSearchPick={onSearchPick}
@@ -1257,10 +1254,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                     setHeatmapSettingsOpen(true);
                     setMobilePanel(null);
                   }}
-                  groupingEnabled={groupingEnabled}
-                  onGroupingEnabled={setGroupingEnabled}
-                  useIcons={useIcons}
-                  onUseIcons={setUseIcons}
                   filters={filters}
                   onFilters={setFilters}
                   onSearchPick={(center, label) => {
@@ -1295,10 +1288,187 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       />
 
       {isLoading && (
-        <div className="pointer-events-none fixed left-3 bottom-3 z-40 md:left-3 md:bottom-3">
+        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
           <div className="ui-panel-strong inline-flex items-center gap-2 px-3 py-2 text-[12px] text-white/85">
             <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
             <span>Updating…</span>
+          </div>
+        </div>
+      )}
+
+      <div className="pointer-events-none fixed left-3 bottom-3 z-40">
+        <div
+          className="ui-panel pointer-events-auto inline-flex max-w-[360px] flex-col gap-2 px-3 py-2"
+          role="button"
+          tabIndex={0}
+          onClick={() => setActiveHelpOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") setActiveHelpOpen(true);
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+              Active
+            </div>
+            <button
+              type="button"
+              className="rounded-md p-1 text-white/65 hover:bg-white/10 hover:text-white/85"
+              aria-label="What do these toggles do?"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveHelpOpen(true);
+              }}
+            >
+              <CircleHelp size={16} />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={
+                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 " +
+                (heatmapEnabled
+                  ? "cursor-not-allowed bg-white/5 text-white/35"
+                  : groupingEnabled
+                  ? "bg-white/10 text-white/90 hover:bg-white/12"
+                  : "bg-white/5 text-white/55 hover:bg-white/10")
+              }
+              disabled={heatmapEnabled}
+              aria-pressed={groupingEnabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                setGroupingEnabled((v) => !v);
+              }}
+            >
+              <span
+                className={
+                  "inline-flex h-4 w-4 items-center justify-center rounded-full border text-[11px] " +
+                  (groupingEnabled
+                    ? "border-white/35 text-white/85"
+                    : "border-white/15 text-white/40")
+                }
+              >
+                {groupingEnabled ? "✓" : ""}
+              </span>
+              <span>Grouping</span>
+            </button>
+
+            <button
+              type="button"
+              className={
+                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 " +
+                (useIcons
+                  ? "bg-white/10 text-white/90 hover:bg-white/12"
+                  : "bg-white/5 text-white/55 hover:bg-white/10")
+              }
+              aria-pressed={useIcons}
+              onClick={(e) => {
+                e.stopPropagation();
+                setUseIcons((v) => !v);
+              }}
+            >
+              <span
+                className={
+                  "inline-flex h-4 w-4 items-center justify-center rounded-full border text-[11px] " +
+                  (useIcons
+                    ? "border-white/35 text-white/85"
+                    : "border-white/15 text-white/40")
+                }
+              >
+                {useIcons ? "✓" : ""}
+              </span>
+              <span>Icons</span>
+            </button>
+
+            <button
+              type="button"
+              className={
+                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 " +
+                (filters.hideRoadTests
+                  ? "bg-white/10 text-white/90 hover:bg-white/12"
+                  : "bg-white/5 text-white/55 hover:bg-white/10")
+              }
+              aria-pressed={Boolean(filters.hideRoadTests)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setFilters((f) => ({ ...f, hideRoadTests: !f.hideRoadTests }));
+              }}
+            >
+              <span
+                className={
+                  "inline-flex h-4 w-4 items-center justify-center rounded-full border text-[11px] " +
+                  (filters.hideRoadTests
+                    ? "border-white/35 text-white/85"
+                    : "border-white/15 text-white/40")
+                }
+              >
+                {filters.hideRoadTests ? "✓" : ""}
+              </span>
+              <span>Hide Tests</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {activeHelpOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 md:p-6"
+          onClick={() => setActiveHelpOpen(false)}
+        >
+          <div
+            className="ui-panel w-full max-w-[620px] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white/90">
+                  Active Settings
+                </div>
+                <div className="mt-1 text-[11px] leading-4 text-white/60">
+                  Quick toggles that affect how incidents are shown.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="ui-btn h-9 px-3 text-[13px]"
+                onClick={() => setActiveHelpOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="ui-divider mx-4" />
+            <div className="p-4">
+              <div className="flex flex-col gap-3">
+                <div className="ui-card">
+                  <div className="text-[13px] font-semibold text-white/90">
+                    Grouping
+                  </div>
+                  <div className="mt-1 text-[11px] leading-4 text-white/60">
+                    Combines nearby incidents into clusters when zoomed out.
+                    Grouping is disabled while Heatmap is enabled.
+                  </div>
+                </div>
+
+                <div className="ui-card">
+                  <div className="text-[13px] font-semibold text-white/90">
+                    Icons
+                  </div>
+                  <div className="mt-1 text-[11px] leading-4 text-white/60">
+                    Shows an icon in labels/popups to visually indicate the
+                    incident category.
+                  </div>
+                </div>
+
+                <div className="ui-card">
+                  <div className="text-[13px] font-semibold text-white/90">
+                    Hide Tests
+                  </div>
+                  <div className="mt-1 text-[11px] leading-4 text-white/60">
+                    Removes “Roadside Test” entries from the dataset.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

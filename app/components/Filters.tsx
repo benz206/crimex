@@ -16,10 +16,6 @@ type Props = {
   onStyleId: (v: MapTilerStyleId) => void;
   heatmapEnabled: boolean;
   onHeatmapSettingsOpen: () => void;
-  groupingEnabled: boolean;
-  onGroupingEnabled: (v: boolean) => void;
-  useIcons: boolean;
-  onUseIcons: (v: boolean) => void;
   filters: IncidentFilters;
   onFilters: (next: IncidentFilters) => void;
   onSearchPick: (center: [number, number], label: string) => void;
@@ -30,10 +26,6 @@ export function Filters({
   onStyleId,
   heatmapEnabled,
   onHeatmapSettingsOpen,
-  groupingEnabled,
-  onGroupingEnabled,
-  useIcons,
-  onUseIcons,
   filters,
   onFilters,
   onSearchPick,
@@ -138,45 +130,6 @@ export function Filters({
         >
           Heatmap
         </button>
-      </div>
-
-      <div className="ui-card">
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            className="ui-checkbox mt-0.5"
-            checked={groupingEnabled}
-            disabled={heatmapEnabled}
-            onChange={(e) => onGroupingEnabled(e.target.checked)}
-          />
-          <span className="min-w-0">
-            <div className="text-[13px] font-semibold text-white/90">
-              Group Nearby Events
-            </div>
-            <div className="mt-0.5 text-[11px] leading-4 text-white/60">
-              Combine close incidents into clusters while zoomed out.
-            </div>
-          </span>
-        </label>
-      </div>
-
-      <div className="ui-card">
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            className="ui-checkbox mt-0.5"
-            checked={useIcons}
-            onChange={(e) => onUseIcons(e.target.checked)}
-          />
-          <span className="min-w-0">
-            <div className="text-[13px] font-semibold text-white/90">
-              Use Icons
-            </div>
-            <div className="mt-0.5 text-[11px] leading-4 text-white/60">
-              Show an icon in map labels (popups).
-            </div>
-          </span>
-        </label>
       </div>
 
       <div ref={searchWrapRef} className="relative">
@@ -310,28 +263,6 @@ export function Filters({
           options={INCIDENT_TYPE_FILTER_OPTIONS}
         />
       </label>
-
-      <div className="ui-card">
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            className="ui-checkbox mt-0.5"
-            checked={Boolean(filters.hideRoadTests)}
-            onChange={(e) =>
-              onFilters({ ...filters, hideRoadTests: e.target.checked })
-            }
-          />
-          <span className="min-w-0">
-            <div className="text-[13px] font-semibold text-white/90">
-              Hide Roadside Tests
-            </div>
-            <div className="mt-0.5 text-[11px] leading-4 text-white/60">
-              Roadside tests are police screening checks and aren’t necessarily
-              a reported incident.
-            </div>
-          </span>
-        </label>
-      </div>
     </div>
   );
 }
