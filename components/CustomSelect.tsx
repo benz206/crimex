@@ -62,7 +62,7 @@ export function CustomSelect({
     if (multiple) return fallback;
     return Math.max(
       0,
-      options.findIndex((o) => o.value === value)
+      options.findIndex((o) => o.value === value),
     );
   });
 
@@ -132,7 +132,7 @@ export function CustomSelect({
       const spaceBelow = window.innerHeight - r.bottom - margin;
       const spaceAbove = r.top - margin;
       setPlacement(
-        spaceBelow < menuH && spaceAbove > spaceBelow ? "up" : "down"
+        spaceBelow < menuH && spaceAbove > spaceBelow ? "up" : "down",
       );
     };
 

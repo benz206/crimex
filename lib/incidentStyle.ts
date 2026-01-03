@@ -10,7 +10,7 @@ function normalize(s?: string) {
 }
 
 const incidentTypeLabelByKey = new Map(
-  INCIDENT_TYPE_CHOICES.map((c) => [normalize(c.value).toUpperCase(), c.label])
+  INCIDENT_TYPE_CHOICES.map((c) => [normalize(c.value).toUpperCase(), c.label]),
 );
 
 function isAllLetters(s: string) {
@@ -36,7 +36,7 @@ export function formatTitleCase(input?: string) {
       part
         .split("-")
         .map((tok) => titleCaseToken(tok))
-        .join("-")
+        .join("-"),
     )
     .join(" ");
 }
@@ -73,7 +73,11 @@ export function getIncidentStyle(description?: string): IncidentStyle {
   if (d.includes("ROBBERY") || d.includes("ASSAULT"))
     return { category: "Violence", color: "#A855F7" };
   if (d.includes("THEFT")) return { category: "Theft", color: "#F59E0B" };
-  if (d.includes("MVC") || d.includes("MOTOR VEHICLE") || d.includes("HIT & RUN"))
+  if (
+    d.includes("MVC") ||
+    d.includes("MOTOR VEHICLE") ||
+    d.includes("HIT & RUN")
+  )
     return { category: "Traffic", color: "#3B82F6" };
   if (
     d.includes("IMPAIRED") ||
@@ -87,5 +91,3 @@ export function getIncidentStyle(description?: string): IncidentStyle {
 
   return { category: "Other", color: "#94A3B8" };
 }
-
-

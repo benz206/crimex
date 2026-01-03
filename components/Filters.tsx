@@ -212,12 +212,12 @@ export function Filters({
               v === "7d"
                 ? endMs - 7 * 24 * 60 * 60 * 1000
                 : v === "2m"
-                ? endMs - 60 * 24 * 60 * 60 * 1000
-                : v === "6m"
-                ? endMs - 180 * 24 * 60 * 60 * 1000
-                : v === "1y"
-                ? endMs - 365 * 24 * 60 * 60 * 1000
-                : endMs - 30 * 24 * 60 * 60 * 1000;
+                  ? endMs - 60 * 24 * 60 * 60 * 1000
+                  : v === "6m"
+                    ? endMs - 180 * 24 * 60 * 60 * 1000
+                    : v === "1y"
+                      ? endMs - 365 * 24 * 60 * 60 * 1000
+                      : endMs - 30 * 24 * 60 * 60 * 1000;
             onFilters({ ...filters, startMs, endMs });
           }}
           options={[

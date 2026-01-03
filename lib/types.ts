@@ -14,7 +14,10 @@ export type IncidentProperties = {
   [k: string]: unknown;
 };
 
-export type IncidentFeature = GeoJSON.Feature<GeoJSON.Point, IncidentProperties>;
+export type IncidentFeature = GeoJSON.Feature<
+  GeoJSON.Point,
+  IncidentProperties
+>;
 
 export type IncidentFeatureCollection = GeoJSON.FeatureCollection<
   GeoJSON.Point,
@@ -37,5 +40,3 @@ export type HeatmapSettings = {
   opacity: number;
   outlineOpacity: number;
 };
-
-

@@ -10,7 +10,10 @@ export const INCIDENT_TYPE_CHOICES: IncidentTypeChoice[] = [
   { value: " BREAK AND ENTER OTHER", label: "Break and Enter – Other" },
   { value: " BREAK AND ENTER SCHOOL", label: "Break and Enter – School" },
   { value: " BREAK AND ENTER SHOP", label: "Break and Enter – Shop" },
-  { value: " DANGEROUS OPERATION - TRAFFIC", label: "Dangerous Operation – Traffic" },
+  {
+    value: " DANGEROUS OPERATION - TRAFFIC",
+    label: "Dangerous Operation – Traffic",
+  },
   { value: " FEDERAL STATS - DRUGS", label: "Federal Stats – Drugs" },
   { value: " HOMICIDE", label: "Homicide" },
   { value: " IMPAIRED DRIVING", label: "Impaired Driving" },
@@ -18,8 +21,14 @@ export const INCIDENT_TYPE_CHOICES: IncidentTypeChoice[] = [
   { value: " MVC - HIT & RUN", label: "MVC – Hit & Run" },
   { value: " MVC - PI", label: "MVC – PI" },
   { value: " OFFENSIVE WEAPONS", label: "Offensive Weapons" },
-  { value: " PROPERTY DAMAGE OVER $5,000", label: "Property Damage Over $5,000" },
-  { value: " PROPERTY DAMAGE UNDER $5,000", label: "Property Damage Under $5,000" },
+  {
+    value: " PROPERTY DAMAGE OVER $5,000",
+    label: "Property Damage Over $5,000",
+  },
+  {
+    value: " PROPERTY DAMAGE UNDER $5,000",
+    label: "Property Damage Under $5,000",
+  },
   {
     value: " RECOVERED VEHICLE OTH SERVICE",
     label: "Recovered Vehicle – Other Service",
@@ -37,5 +46,3 @@ export const INCIDENT_TYPE_FILTER_OPTIONS: IncidentTypeChoice[] = [
   { value: "", label: "All" },
   ...INCIDENT_TYPE_CHOICES,
 ];
-
-

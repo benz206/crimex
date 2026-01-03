@@ -7,10 +7,13 @@ export type MapTilerStyleId =
 
 export const DEFAULT_STYLE_ID: MapTilerStyleId = "streets-v2-dark";
 
-export function mapTilerStyleUrl(styleId: MapTilerStyleId, key: string): string {
+export function mapTilerStyleUrl(
+  styleId: MapTilerStyleId,
+  key: string,
+): string {
   const id = (styleId || DEFAULT_STYLE_ID).trim();
   return `https://api.maptiler.com/maps/${encodeURIComponent(id)}/style.json?key=${encodeURIComponent(
-    key
+    key,
   )}`;
 }
 
@@ -34,7 +37,7 @@ export async function mapTilerGeocode(input: {
   if (!q) return [];
 
   const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(
-    q
+    q,
   )}.json?key=${encodeURIComponent(input.key)}&limit=5&country=ca`;
 
   const res = await fetch(url, { signal: input.signal });
@@ -46,7 +49,8 @@ export async function mapTilerGeocode(input: {
   const feats = Array.isArray(featsUnknown) ? featsUnknown : [];
   const out: MapTilerGeocodeResult[] = [];
   for (const f of feats) {
-    const label = (f as { place_name?: unknown } | null | undefined)?.place_name;
+    const label = (f as { place_name?: unknown } | null | undefined)
+      ?.place_name;
     const center = (f as { center?: unknown } | null | undefined)?.center;
     if (typeof label !== "string") continue;
     if (!Array.isArray(center) || center.length < 2) continue;
@@ -62,5 +66,3 @@ export async function mapTilerGeocode(input: {
   }
   return out;
 }
-
-

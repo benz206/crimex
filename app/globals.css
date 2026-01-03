@@ -22,8 +22,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto,
-    Arial, sans-serif;
+  font-family:
+    var(--font-sans),
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
 }
 
 @layer components {
@@ -37,8 +43,11 @@ body {
     border: 1px solid var(--stroke);
     box-shadow: var(--shadow);
     animation: ui-pop 180ms ease-out both;
-    transition: background-color 160ms ease, border-color 160ms ease,
-      box-shadow 160ms ease, transform 160ms ease;
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease;
   }
 
   .ui-panel-strong {
@@ -47,8 +56,11 @@ body {
     border: 1px solid var(--stroke);
     box-shadow: var(--shadow);
     animation: ui-pop 180ms ease-out both;
-    transition: background-color 160ms ease, border-color 160ms ease,
-      box-shadow 160ms ease, transform 160ms ease;
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease;
   }
 
   .ui-title {
@@ -78,7 +90,9 @@ body {
     background: rgba(255, 255, 255, 0.07);
     color: var(--foreground);
     border: 1px solid var(--stroke);
-    transition: background-color 140ms ease, border-color 140ms ease,
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
       transform 140ms ease;
   }
 
@@ -107,7 +121,9 @@ body {
     background-repeat: no-repeat;
     background-position: right 0.9rem center;
     background-size: 1rem 1rem;
-    transition: background-color 140ms ease, border-color 140ms ease,
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
       transform 140ms ease;
   }
 
@@ -141,7 +157,9 @@ body {
     justify-content: space-between;
     gap: 0.5rem;
     cursor: pointer;
-    transition: background-color 140ms ease, border-color 140ms ease,
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
       transform 140ms ease;
   }
 
@@ -222,7 +240,9 @@ body {
     background: rgba(255, 255, 255, 0.07);
     color: var(--foreground);
     border: 1px solid var(--stroke);
-    transition: background-color 140ms ease, border-color 140ms ease,
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
       transform 140ms ease;
   }
 
@@ -248,7 +268,9 @@ body {
     font-weight: 600;
     background: rgba(255, 255, 255, 0.95);
     color: rgba(0, 0, 0, 0.92);
-    transition: background-color 140ms ease, transform 140ms ease;
+    transition:
+      background-color 140ms ease,
+      transform 140ms ease;
   }
 
   .ui-btn-primary:hover {
@@ -268,7 +290,9 @@ body {
     text-align: left;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--stroke);
-    transition: background-color 140ms ease, border-color 140ms ease,
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
       transform 140ms ease;
   }
 

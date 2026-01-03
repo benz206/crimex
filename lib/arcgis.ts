@@ -76,19 +76,19 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
   if (filters.startMs != null && filters.endMs != null) {
     clauses.push(
       `DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND ${formatTorontoSqlTimestamp(
-        filters.endMs
-      )}`
+        filters.endMs,
+      )}`,
     );
   } else if (filters.startMs != null) {
     clauses.push(
-      `DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND CURRENT_TIMESTAMP`
+      `DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND CURRENT_TIMESTAMP`,
     );
   } else if (filters.endMs != null) {
     clauses.push(`DATE <= ${formatTorontoSqlTimestamp(filters.endMs)}`);
   }
 
   const cities = (filters.city ?? []).filter(
-    (x) => typeof x === "string" && x.trim()
+    (x) => typeof x === "string" && x.trim(),
   );
   if (cities.length === 1) {
     clauses.push(`CITY = '${escapeSqlString(cities[0]!.trim())}'`);
@@ -96,12 +96,12 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
     clauses.push(
       `CITY IN (${cities
         .map((c) => `'${escapeSqlString(c.trim())}'`)
-        .join(",")})`
+        .join(",")})`,
     );
   }
 
   const descriptions = (filters.description ?? []).filter(
-    (x) => typeof x === "string" && x.trim()
+    (x) => typeof x === "string" && x.trim(),
   );
   if (descriptions.length === 1) {
     clauses.push(`DESCRIPTION = '${escapeSqlString(descriptions[0]!)}'`);
@@ -109,7 +109,7 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
     clauses.push(
       `DESCRIPTION IN (${descriptions
         .map((d) => `'${escapeSqlString(d)}'`)
-        .join(",")})`
+        .join(",")})`,
     );
   }
 
@@ -135,7 +135,11 @@ function encodeArcGISParams(params: Record<string, ArcGISParamValue>) {
   const out = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v == null) continue;
-    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+    if (
+      typeof v === "string" ||
+      typeof v === "number" ||
+      typeof v === "boolean"
+    ) {
       out.set(k, String(v));
       continue;
     }
@@ -144,7 +148,11 @@ function encodeArcGISParams(params: Record<string, ArcGISParamValue>) {
   return out;
 }
 
-async function fetchArcGIS(url: string, format: ArcGISFormat, signal?: AbortSignal) {
+async function fetchArcGIS(
+  url: string,
+  format: ArcGISFormat,
+  signal?: AbortSignal,
+) {
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`ArcGIS request failed: ${res.status}`);
   if (format === "pbf") return new Uint8Array(await res.arrayBuffer());
@@ -190,7 +198,9 @@ export class ArcGISFeatureLayerClient {
   }
 }
 
-export const arcgisCrimeLayer = new ArcGISFeatureLayerClient(ARCGIS_CRIME_LAYER_URL);
+export const arcgisCrimeLayer = new ArcGISFeatureLayerClient(
+  ARCGIS_CRIME_LAYER_URL,
+);
 
 type QueryCommon = {
   where: string;
@@ -268,7 +278,7 @@ type GeoJSONQueryResult = {
 };
 
 async function tryQueryGeoJSON(
-  input: QueryCommon & { offset: number; count: number }
+  input: QueryCommon & { offset: number; count: number },
 ): Promise<GeoJSONQueryResult | null> {
   const client = input.client ?? arcgisCrimeLayer;
   const data = (await client.query({
@@ -294,7 +304,7 @@ async function tryQueryGeoJSON(
 }
 
 async function queryEsriJson(
-  input: QueryCommon & { offset: number; count: number }
+  input: QueryCommon & { offset: number; count: number },
 ): Promise<GeoJSONQueryResult> {
   const client = input.client ?? arcgisCrimeLayer;
   const data = (await client.query({
@@ -400,5 +410,3 @@ export async function fetchDistinctValues(input: {
   }
   return Array.from(out).sort((a, b) => a.localeCompare(b));
 }
-
-

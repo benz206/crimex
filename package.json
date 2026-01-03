@@ -6,12 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "lucide-react": "^0.562.0",
     "maplibre-gl": "^5.15.0",
     "next": "16.1.1",
+    "prettier": "^3.7.4",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
