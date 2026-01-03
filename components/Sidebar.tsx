@@ -132,12 +132,6 @@ export function Sidebar({ items, onPick }: Props) {
         <div className="flex flex-col gap-2">
           {paged.map((f) => {
             const s = getIncidentStyle(f.properties.DESCRIPTION);
-            const rawCaseNo =
-              typeof f.properties.CASE_NO === "string" ||
-              typeof f.properties.CASE_NO === "number"
-                ? String(f.properties.CASE_NO)
-                : "";
-            const caseNo = rawCaseNo.trim();
             return (
               <button
                 key={String(f.properties.OBJECTID)}
@@ -145,23 +139,15 @@ export function Sidebar({ items, onPick }: Props) {
                 className="ui-card relative cursor-pointer overflow-hidden"
                 onClick={() => onPick(f)}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-2 gap-x-3 gap-y-1 items-start">
                   <div className="min-w-0">
                     <div className="text-[14px] font-semibold text-white/95">
                       {formatIncidentDescription(f.properties.DESCRIPTION) ||
                         "Incident"}
                     </div>
-                    <div className="mt-1 text-[11px] text-white/65">
-                      <div className="truncate">
-                        {formatCity(f.properties.CITY) || ""}
-                      </div>
-                      {caseNo ? (
-                        <div className="truncate">Case #{caseNo}</div>
-                      ) : null}
-                    </div>
                   </div>
 
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 justify-self-end">
                     <div className="inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/75 ring-1 ring-white/10">
                       <span className="inline-flex items-center gap-2">
                         <span
@@ -171,9 +157,16 @@ export function Sidebar({ items, onPick }: Props) {
                         <span>{s.category}</span>
                       </span>
                     </div>
-                    <div className="mt-2 text-[11px] text-white/65">
-                      {formatIncidentDate(f.properties.DATE)}
+                  </div>
+
+                  <div className="min-w-0 text-[11px] text-white/65">
+                    <div className="truncate">
+                      {formatCity(f.properties.CITY) || ""}
                     </div>
+                  </div>
+
+                  <div className="shrink-0 justify-self-end text-[11px] text-white/65">
+                    {formatIncidentDate(f.properties.DATE)}
                   </div>
                 </div>
                 <div

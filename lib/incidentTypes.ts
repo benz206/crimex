@@ -31,7 +31,7 @@ export const INCIDENT_TYPE_CHOICES: IncidentTypeChoice[] = [
   },
   {
     value: " RECOVERED VEHICLE OTH SERVICE",
-    label: "Recovered Vehicle – Other Service",
+    label: "Recovered Vehicle – Other",
   },
   { value: " ROADSIDE TEST", label: "Roadside Test" },
   { value: " ROBBERY", label: "Robbery" },

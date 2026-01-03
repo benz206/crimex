@@ -197,29 +197,49 @@ function IncidentPopupContent({
     ? "Roadside tests are police screening checks and aren’t necessarily a reported incident."
     : "";
 
+  const bl = [city, caseNo ? `Case #${caseNo}` : ""].filter(Boolean).join(" · ");
+
   return (
     <div
-      className="incident-popup"
+      className="min-w-[220px]"
       style={{ "--incident-color": style.color } as CSSVarStyle}
     >
-      <div className="incident-popup__row">
-        <div className="incident-popup__badge">
-          <span className="incident-popup__dot" />
+      <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 items-start gap-2">
+          {useIcons ? (
+            <Icon size={16} strokeWidth={2} className="shrink-0 opacity-90" />
+          ) : null}
+          <div className="min-w-0 font-[750] text-[13px] leading-tight text-white/95">
+            {title}
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-2 self-start whitespace-nowrap rounded-full bg-white/5 px-2.5 py-1 text-[11px] leading-4 text-white/85 ring-1 ring-white/10">
+          <span
+            className="h-2 w-2 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.25)]"
+            style={{ backgroundColor: style.color }}
+          />
           <span>{style.category}</span>
         </div>
-      </div>
-      <div className="incident-popup__titleRow">
-        {useIcons ? (
-          <Icon size={16} strokeWidth={2} className="shrink-0 opacity-90" />
+
+        {bl ? (
+          <div className="min-w-0 truncate text-[11px] leading-4 text-white/70">
+            {bl}
+          </div>
         ) : null}
-        <div className="incident-popup__title">{title}</div>
+
+        {date ? (
+          <div className="whitespace-nowrap text-[11px] leading-4 text-white/70">
+            {date}
+          </div>
+        ) : null}
+
+        {note ? (
+          <div className="rounded-[10px] bg-white/5 px-2.5 py-2 text-[11px] leading-4 text-white/70 ring-1 ring-white/10">
+            {note}
+          </div>
+        ) : null}
       </div>
-      <div className="incident-popup__meta">
-        {caseNo ? <div>{`Case #${caseNo}`}</div> : null}
-        {city ? <div>{city}</div> : null}
-        {date ? <div>{date}</div> : null}
-      </div>
-      {note ? <div className="incident-popup__note">{note}</div> : null}
     </div>
   );
 }
@@ -232,12 +252,14 @@ function SearchPopupContent({
   useIcons: boolean;
 }) {
   return (
-    <div className="incident-popup">
-      <div className="incident-popup__titleRow">
+    <div className="min-w-[220px]">
+      <div className="flex items-center gap-2">
         {useIcons ? (
           <MapPin size={16} strokeWidth={2} className="shrink-0 opacity-90" />
         ) : null}
-        <div className="incident-popup__title">{label}</div>
+        <div className="min-w-0 font-[750] text-[13px] leading-tight text-white/95">
+          {label}
+        </div>
       </div>
     </div>
   );
