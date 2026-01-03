@@ -27,6 +27,7 @@ export type IncidentFeatureCollection = GeoJSON.FeatureCollection<
 export type IncidentFilters = {
   startMs?: number;
   endMs?: number;
+  timePreset?: "7d" | "1m" | "2m" | "6m" | "1y" | "all" | "custom";
   city?: string[];
   description?: string[];
   hideRoadTests?: boolean;

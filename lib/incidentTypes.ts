@@ -27,7 +27,7 @@ export const INCIDENT_TYPE_CHOICES: IncidentTypeChoice[] = [
   },
   {
     value: " PROPERTY DAMAGE UNDER $5,000",
-    label: "Property Damage Under $5,000",
+    label: "Property Damage Under $5k",
   },
   {
     value: " RECOVERED VEHICLE OTH SERVICE",
@@ -39,7 +39,7 @@ export const INCIDENT_TYPE_CHOICES: IncidentTypeChoice[] = [
   { value: " THEFT OF BICYCLE", label: "Theft of Bicycle" },
   { value: " THEFT OF VEHICLE", label: "Theft of Vehicle" },
   { value: " THEFT OVER", label: "Theft Over $5,000" },
-  { value: " THEFT UNDER", label: "Theft Under $5,000" },
+  { value: " THEFT UNDER", label: "Theft Under $5k" },
 ];
 
 export const INCIDENT_TYPE_FILTER_OPTIONS: IncidentTypeChoice[] = [

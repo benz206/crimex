@@ -269,7 +269,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const makeDefaultFilters = (): IncidentFilters => {
     const endMs = Date.now();
     const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-    return { startMs, endMs, hideRoadTests: true };
+    return { startMs, endMs, timePreset: "1m", hideRoadTests: true };
   };
   const filtersRef = useRef<IncidentFilters>(makeDefaultFilters());
   const [loadingCount, setLoadingCount] = useState(0);

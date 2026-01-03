@@ -43,30 +43,20 @@ function escapeSqlString(value: string) {
   return value.replaceAll("'", "''");
 }
 
-function formatTorontoSqlTimestamp(ms: number) {
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function formatSqlTimestampUtc(ms: number) {
   assertFinite(ms, "ms");
   const d = new Date(ms);
   if (Number.isNaN(d.getTime())) throw new Error("Invalid date");
-  const dtf = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Toronto",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  });
-  const parts = dtf.formatToParts(d);
-  const get = (t: Intl.DateTimeFormatPartTypes) =>
-    parts.find((p) => p.type === t)?.value ?? "";
-  const y = get("year");
-  const mo = get("month");
-  const da = get("day");
-  const h = get("hour");
-  const mi = get("minute");
-  const s = get("second");
-  if (![y, mo, da, h, mi, s].every(Boolean)) throw new Error("Invalid date");
+  const y = d.getUTCFullYear();
+  const mo = pad2(d.getUTCMonth() + 1);
+  const da = pad2(d.getUTCDate());
+  const h = pad2(d.getUTCHours());
+  const mi = pad2(d.getUTCMinutes());
+  const s = pad2(d.getUTCSeconds());
   return `timestamp '${y}-${mo}-${da} ${h}:${mi}:${s}'`;
 }
 
@@ -75,16 +65,16 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
 
   if (filters.startMs != null && filters.endMs != null) {
     clauses.push(
-      `DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND ${formatTorontoSqlTimestamp(
+      `DATE BETWEEN ${formatSqlTimestampUtc(filters.startMs)} AND ${formatSqlTimestampUtc(
         filters.endMs,
       )}`,
     );
   } else if (filters.startMs != null) {
     clauses.push(
-      `DATE BETWEEN ${formatTorontoSqlTimestamp(filters.startMs)} AND CURRENT_TIMESTAMP`,
+      `DATE BETWEEN ${formatSqlTimestampUtc(filters.startMs)} AND CURRENT_TIMESTAMP`,
     );
   } else if (filters.endMs != null) {
-    clauses.push(`DATE <= ${formatTorontoSqlTimestamp(filters.endMs)}`);
+    clauses.push(`DATE <= ${formatSqlTimestampUtc(filters.endMs)}`);
   }
 
   const cities = (filters.city ?? []).filter(

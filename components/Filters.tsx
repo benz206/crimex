@@ -10,6 +10,10 @@ import {
 import type { IncidentFilters } from "@/lib/types";
 import { CustomSelect } from "@/components/CustomSelect";
 import { INCIDENT_TYPE_FILTER_OPTIONS } from "@/lib/incidentTypes";
+import {
+  formatTorontoDatetimeLocal,
+  parseTorontoDatetimeLocalToMs,
+} from "@/lib/time";
 
 type Props = {
   styleId: MapTilerStyleId;
@@ -30,7 +34,7 @@ export function Filters({
   onFilters,
   onSearchPick,
 }: Props) {
-  const rangeValue = (() => {
+  const inferredRangeValue = (() => {
     const start = filters.startMs;
     const end = filters.endMs;
     if (typeof start !== "number" || typeof end !== "number") return "all";
@@ -42,6 +46,8 @@ export function Filters({
     if (days <= 400) return "1y";
     return "all";
   })();
+  const rangeValue = filters.timePreset ?? inferredRangeValue;
+  const showCustom = rangeValue === "custom";
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? "";
   const abortRef = useRef<AbortController | null>(null);
@@ -103,7 +109,7 @@ export function Filters({
           onClick={() => {
             const endMs = Date.now();
             const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-            onFilters({ startMs, endMs, hideRoadTests: true });
+            onFilters({ startMs, endMs, timePreset: "1m", hideRoadTests: true });
             setQuery("");
             setOpen(false);
           }}
@@ -203,7 +209,22 @@ export function Filters({
               const next = { ...filters };
               delete next.startMs;
               delete next.endMs;
+              next.timePreset = "all";
               onFilters(next);
+              return;
+            }
+
+            if (v === "custom") {
+              if (
+                typeof filters.startMs === "number" &&
+                typeof filters.endMs === "number"
+              ) {
+                onFilters({ ...filters, timePreset: "custom" });
+                return;
+              }
+              const endMs = Date.now();
+              const startMs = endMs - 7 * 24 * 60 * 60 * 1000;
+              onFilters({ ...filters, startMs, endMs, timePreset: "custom" });
               return;
             }
 
@@ -218,7 +239,12 @@ export function Filters({
                     : v === "1y"
                       ? endMs - 365 * 24 * 60 * 60 * 1000
                       : endMs - 30 * 24 * 60 * 60 * 1000;
-            onFilters({ ...filters, startMs, endMs });
+            onFilters({
+              ...filters,
+              startMs,
+              endMs,
+              timePreset: v as IncidentFilters["timePreset"],
+            });
           }}
           options={[
             { value: "7d", label: "7 days" },
@@ -226,10 +252,91 @@ export function Filters({
             { value: "2m", label: "2 months" },
             { value: "6m", label: "6 months" },
             { value: "1y", label: "1 year" },
+            { value: "custom", label: "Custom…" },
             { value: "all", label: "All" },
           ]}
         />
       </label>
+
+      {showCustom && (
+        <div className="grid grid-cols-1 gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="ui-label">Start (Toronto)</span>
+            <input
+              type="datetime-local"
+              className="ui-input"
+              value={
+                typeof filters.startMs === "number"
+                  ? formatTorontoDatetimeLocal(filters.startMs)
+                  : ""
+              }
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (!raw) {
+                  const next = { ...filters };
+                  delete next.startMs;
+                  next.timePreset = "custom";
+                  onFilters(next);
+                  return;
+                }
+                const ms = parseTorontoDatetimeLocalToMs(raw);
+                if (ms == null) return;
+                const next: IncidentFilters = {
+                  ...filters,
+                  startMs: ms,
+                  timePreset: "custom",
+                };
+                if (
+                  typeof next.endMs === "number" &&
+                  typeof next.startMs === "number" &&
+                  next.startMs > next.endMs
+                ) {
+                  next.endMs = next.startMs;
+                }
+                onFilters(next);
+              }}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="ui-label">End (Toronto)</span>
+            <input
+              type="datetime-local"
+              className="ui-input"
+              value={
+                typeof filters.endMs === "number"
+                  ? formatTorontoDatetimeLocal(filters.endMs)
+                  : ""
+              }
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (!raw) {
+                  const next = { ...filters };
+                  delete next.endMs;
+                  next.timePreset = "custom";
+                  onFilters(next);
+                  return;
+                }
+                const ms = parseTorontoDatetimeLocalToMs(raw);
+                if (ms == null) return;
+                const next: IncidentFilters = {
+                  ...filters,
+                  endMs: ms,
+                  timePreset: "custom",
+                };
+                if (
+                  typeof next.endMs === "number" &&
+                  typeof next.startMs === "number" &&
+                  next.endMs < next.startMs
+                ) {
+                  next.startMs = next.endMs;
+                }
+                onFilters(next);
+              }}
+            />
+          </label>
+        </div>
+      )}
 
       <label className="flex flex-col gap-1">
         <span className="ui-label">Municipality</span>
