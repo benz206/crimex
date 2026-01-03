@@ -74,13 +74,26 @@ const isRoadsideTest = (desc?: string) => {
   return d === "ROADSIDE TEST" || d === "ROAD TEST" || d === "ROADTEST";
 };
 
+const isFederalStats = (desc?: string) => {
+  const d = (desc ?? "").trim().toUpperCase();
+  return d.startsWith("FEDERAL STATS");
+};
+
+const INCIDENT_ABBREVIATION_LEGEND: Array<{ abbr: string; meaning: string }> = [
+  { abbr: "MVC", meaning: "Motor Vehicle Collision" },
+  { abbr: "PI", meaning: "Personal Injury" },
+];
+
 const decorateIncidents = (
   fc: IncidentFeatureCollection,
   f: IncidentFilters,
 ): IncidentFeatureCollection => {
   const features = fc.features
     .filter(
-      (x) => !f.hideRoadTests || !isRoadsideTest(x.properties.DESCRIPTION),
+      (x) =>
+        !f.hideRoadTests ||
+        (!isRoadsideTest(x.properties.DESCRIPTION) &&
+          !isFederalStats(x.properties.DESCRIPTION)),
     )
     .map((x) => {
       const s = getIncidentStyle(x.properties.DESCRIPTION);
@@ -1298,7 +1311,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
       <div className="pointer-events-none fixed left-3 bottom-3 z-40">
         <div
-          className="ui-panel pointer-events-auto inline-flex max-w-[360px] flex-col gap-2 px-3 py-2"
+          className="ui-panel pointer-events-auto inline-flex max-w-[440px] flex-col gap-2 px-3 py-2 cursor-pointer"
           role="button"
           tabIndex={0}
           onClick={() => setActiveHelpOpen(true)}
@@ -1326,7 +1339,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <button
               type="button"
               className={
-                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 " +
+                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 cursor-pointer " +
                 (heatmapEnabled
                   ? "cursor-not-allowed bg-white/5 text-white/35"
                   : groupingEnabled
@@ -1356,7 +1369,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <button
               type="button"
               className={
-                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 " +
+                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 cursor-pointer " +
                 (useIcons
                   ? "bg-white/10 text-white/90 hover:bg-white/12"
                   : "bg-white/5 text-white/55 hover:bg-white/10")
@@ -1383,7 +1396,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <button
               type="button"
               className={
-                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 " +
+                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 cursor-pointer " +
                 (filters.hideRoadTests
                   ? "bg-white/10 text-white/90 hover:bg-white/12"
                   : "bg-white/5 text-white/55 hover:bg-white/10")
@@ -1404,7 +1417,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               >
                 {filters.hideRoadTests ? "✓" : ""}
               </span>
-              <span>Hide Tests</span>
+              <span>Hide Tests/Stats</span>
             </button>
           </div>
         </div>
@@ -1461,10 +1474,30 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
                 <div className="ui-card">
                   <div className="text-[13px] font-semibold text-white/90">
-                    Hide Tests
+                    Hide Tests/Stats
                   </div>
                   <div className="mt-1 text-[11px] leading-4 text-white/60">
-                    Removes “Roadside Test” entries from the dataset.
+                    Removes “Roadside Test” and “Federal Stats” entries from the
+                    dataset.
+                  </div>
+                </div>
+
+                <div className="ui-card">
+                  <div className="text-[13px] font-semibold text-white/90">
+                    Legend
+                  </div>
+                  <div className="mt-1 text-[11px] leading-4 text-white/60">
+                    Common abbreviations you may see in incident names:
+                  </div>
+                  <div className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[11px] leading-4 text-white/70">
+                    {INCIDENT_ABBREVIATION_LEGEND.map((x) => (
+                      <div key={x.abbr} className="contents">
+                        <div className="font-semibold text-white/85">
+                          {x.abbr}
+                        </div>
+                        <div>{x.meaning}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

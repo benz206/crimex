@@ -116,6 +116,8 @@ export function buildIncidentWhere(filters: IncidentFilters): string {
   if (filters.hideRoadTests) {
     clauses.push(`DESCRIPTION <> ' ROADSIDE TEST'`);
     clauses.push(`DESCRIPTION <> 'ROADSIDE TEST'`);
+    clauses.push(`DESCRIPTION <> ' FEDERAL STATS - DRUGS'`);
+    clauses.push(`DESCRIPTION <> 'FEDERAL STATS - DRUGS'`);
   }
 
   return clauses.join(" AND ");
