@@ -21,25 +21,30 @@ Interactive map for exploring Halton Region incidents. Built with Next.js + MapL
 1. Install deps:
 
 ```bash
-pnpm install
+bun install
 ```
 
-2. Create a `.env.local`:
+2. Create a `.env.local` (copy `env.example`):
 
 ```bash
 NEXT_PUBLIC_MAPTILER_KEY=throw in a key here
+NEXT_PUBLIC_SUPABASE_URL=your supabase project url (optional)
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your supabase anon key (optional)
 ```
 
 3. Run the dev server:
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 ## Data sources
 
 - **Incidents (ArcGIS FeatureServer)**: `https://services2.arcgis.com/o1LYr96CpFkfsDJS/arcgis/rest/services/Crime_Map/FeatureServer/0`
   - The app queries this client-side via `lib/arcgis.ts` (GeoJSON when supported, with an Esri JSON fallback).
+- **Incidents (Supabase, optional)**:
+  - If `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, the app queries Supabase table `incidents` instead of ArcGIS.
+  - Expected columns: `objectid` (int), `date_ms` (bigint ms), `city` (text), `description` (text), `case_no` (text), `lng` (float8), `lat` (float8).
 - **Basemaps + geocoding (MapTiler)**:
   - Basemap styles are fetched using your `NEXT_PUBLIC_MAPTILER_KEY`.
   - Search uses MapTiler’s geocoding API (Canada-scoped).

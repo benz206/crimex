@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import maplibregl, {
@@ -29,7 +23,7 @@ import {
   type MapTilerStyleId,
   mapTilerStyleUrl,
 } from "@/lib/maptiler";
-import { fetchIncidentsGeoJSON } from "@/lib/arcgis";
+import { fetchIncidents } from "@/lib/incidents";
 import type {
   IncidentFeature,
   IncidentFeatureCollection,
@@ -58,8 +52,8 @@ function findLabelAnchorLayerId(map: maplibregl.Map): string | undefined {
 
   const preferred = withText.find((l) =>
     /(place|settlement|city|town|village|suburb|neigh|district|region|county|state|province|boundary|area)/i.test(
-      l.id,
-    ),
+      l.id
+    )
   );
   return (preferred ?? withText[0])!.id;
 }
@@ -81,14 +75,14 @@ const INCIDENT_ABBREVIATION_LEGEND: Array<{ abbr: string; meaning: string }> = [
 
 const decorateIncidents = (
   fc: IncidentFeatureCollection,
-  f: IncidentFilters,
+  f: IncidentFilters
 ): IncidentFeatureCollection => {
   const features = fc.features
     .filter(
       (x) =>
         !f.hideRoadTests ||
         (!isRoadsideTest(x.properties.DESCRIPTION) &&
-          !isFederalStats(x.properties.DESCRIPTION)),
+          !isFederalStats(x.properties.DESCRIPTION))
     )
     .map((x) => {
       const s = getIncidentStyle(x.properties.DESCRIPTION);
@@ -141,7 +135,7 @@ async function ensureLucideImages(map: maplibregl.Map) {
     if (map.hasImage(id)) continue;
     const Icon = iconById[id];
     const svg = renderToStaticMarkup(
-      <Icon size={20} strokeWidth={2.25} color="rgba(255,255,255,0.92)" />,
+      <Icon size={20} strokeWidth={2.25} color="rgba(255,255,255,0.92)" />
     );
     const img = await loadSvgAsImage(svg);
     map.addImage(id, img, { pixelRatio: 2 });
@@ -228,12 +222,12 @@ const applyHeatmapSettings = (m: Map, s: HeatmapSettings) => {
     m.setPaintProperty(
       "heatmap",
       "heatmap-radius",
-      zoomExpr(s.radius0, s.radius12),
+      zoomExpr(s.radius0, s.radius12)
     );
     m.setPaintProperty(
       "heatmap",
       "heatmap-intensity",
-      zoomExpr(s.intensity0, s.intensity12),
+      zoomExpr(s.intensity0, s.intensity12)
     );
     m.setPaintProperty("heatmap", "heatmap-opacity", s.opacity);
     m.setPaintProperty("heatmap", "heatmap-color", heatmapColorExpr);
@@ -243,18 +237,18 @@ const applyHeatmapSettings = (m: Map, s: HeatmapSettings) => {
     m.setPaintProperty(
       "heatmap-outline",
       "heatmap-radius",
-      zoomExpr(s.radius0 * 2, s.radius12 * 2),
+      zoomExpr(s.radius0 * 2, s.radius12 * 2)
     );
     m.setPaintProperty(
       "heatmap-outline",
       "heatmap-intensity",
-      zoomExpr(s.intensity0, s.intensity12),
+      zoomExpr(s.intensity0, s.intensity12)
     );
     m.setPaintProperty("heatmap-outline", "heatmap-opacity", s.outlineOpacity);
     m.setPaintProperty(
       "heatmap-outline",
       "heatmap-color",
-      heatmapOutlineColorExpr,
+      heatmapOutlineColorExpr
     );
   }
 };
@@ -280,7 +274,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const [groupingEnabled, setGroupingEnabled] = useState(true);
   const [heatmapSettingsOpen, setHeatmapSettingsOpen] = useState(false);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(
-    DEFAULT_HEATMAP_SETTINGS,
+    DEFAULT_HEATMAP_SETTINGS
   );
   const heatmapSettingsRef = useRef<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [useIcons, setUseIcons] = useState(true);
@@ -288,7 +282,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const [currentStyleId, setCurrentStyleId] =
     useState<MapTilerStyleId>(styleId);
   const [filters, setFilters] = useState<IncidentFilters>(
-    () => filtersRef.current,
+    () => filtersRef.current
   );
   const [incidents, setIncidents] = useState<IncidentFeatureCollection>({
     type: "FeatureCollection",
@@ -398,7 +392,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
       startLoading();
       try {
-        const data = await fetchIncidentsGeoJSON({
+        const data = await fetchIncidents({
           bbox,
           filters: filtersRef.current,
           signal: ac.signal,
@@ -464,7 +458,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "fill-opacity": 0.9,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -478,7 +472,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "line-blur": 0.2,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -510,7 +504,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "circle-stroke-width": 1,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -527,7 +521,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "text-color": "rgba(255,255,255,0.92)",
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -548,7 +542,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "circle-stroke-width": 1.25,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -571,7 +565,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "icon-opacity": 0.95,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -592,7 +586,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "circle-stroke-width": 0,
           },
         },
-        "points",
+        "points"
       );
 
       map.addLayer(
@@ -612,7 +606,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "circle-stroke-width": 1.25,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -634,7 +628,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "icon-opacity": 0.95,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -654,7 +648,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "circle-stroke-width": 0,
           },
         },
-        "points-raw",
+        "points-raw"
       );
 
       map.addLayer(
@@ -667,17 +661,17 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "heatmap-weight": heatmapWeightExpr,
             "heatmap-intensity": zoomExpr(
               DEFAULT_HEATMAP_SETTINGS.intensity0,
-              DEFAULT_HEATMAP_SETTINGS.intensity12,
+              DEFAULT_HEATMAP_SETTINGS.intensity12
             ),
             "heatmap-radius": zoomExpr(
               DEFAULT_HEATMAP_SETTINGS.radius0 * 2,
-              DEFAULT_HEATMAP_SETTINGS.radius12 * 2,
+              DEFAULT_HEATMAP_SETTINGS.radius12 * 2
             ),
             "heatmap-opacity": DEFAULT_HEATMAP_SETTINGS.outlineOpacity,
             "heatmap-color": heatmapOutlineColorExpr,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.addLayer(
@@ -690,17 +684,17 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             "heatmap-weight": heatmapWeightExpr,
             "heatmap-intensity": zoomExpr(
               DEFAULT_HEATMAP_SETTINGS.intensity0,
-              DEFAULT_HEATMAP_SETTINGS.intensity12,
+              DEFAULT_HEATMAP_SETTINGS.intensity12
             ),
             "heatmap-radius": zoomExpr(
               DEFAULT_HEATMAP_SETTINGS.radius0,
-              DEFAULT_HEATMAP_SETTINGS.radius12,
+              DEFAULT_HEATMAP_SETTINGS.radius12
             ),
             "heatmap-opacity": DEFAULT_HEATMAP_SETTINGS.opacity,
             "heatmap-color": heatmapColorExpr,
           },
         },
-        beforeLabels,
+        beforeLabels
       );
 
       map.setLayoutProperty("heatmap-outline", "visibility", "none");
@@ -741,7 +735,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             map.setPaintProperty(
               "points-glow",
               "circle-blur",
-              0.9 + eased * 0.7,
+              0.9 + eased * 0.7
             );
           }
           if (map.getLayer("points-raw-glow")) {
@@ -750,7 +744,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             map.setPaintProperty(
               "points-raw-glow",
               "circle-blur",
-              0.9 + eased * 0.7,
+              0.9 + eased * 0.7
             );
           }
         }
@@ -831,37 +825,37 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       m.setLayoutProperty(
         "heatmap-outline",
         "visibility",
-        heatmapEnabled ? "visible" : "none",
+        heatmapEnabled ? "visible" : "none"
       );
       m.setLayoutProperty(
         "heatmap",
         "visibility",
-        heatmapEnabled ? "visible" : "none",
+        heatmapEnabled ? "visible" : "none"
       );
       m.setLayoutProperty(
         "query-area-fill",
         "visibility",
-        heatmapEnabled ? "visible" : "none",
+        heatmapEnabled ? "visible" : "none"
       );
       m.setLayoutProperty(
         "query-area-outline",
         "visibility",
-        heatmapEnabled ? "visible" : "none",
+        heatmapEnabled ? "visible" : "none"
       );
       m.setLayoutProperty(
         "clusters",
         "visibility",
-        heatmapEnabled || !groupingEnabled ? "none" : "visible",
+        heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
       m.setLayoutProperty(
         "cluster-count",
         "visibility",
-        heatmapEnabled || !groupingEnabled ? "none" : "visible",
+        heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
       m.setLayoutProperty(
         "points",
         "visibility",
-        heatmapEnabled || !groupingEnabled ? "none" : "visible",
+        heatmapEnabled || !groupingEnabled ? "none" : "visible"
       );
       if (m.getLayer("points")) {
         m.setPaintProperty("points", "circle-radius", pointRadius);
@@ -871,21 +865,21 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         m.setLayoutProperty(
           "points-icons",
           "visibility",
-          !useIcons || heatmapEnabled || !groupingEnabled ? "none" : "visible",
+          !useIcons || heatmapEnabled || !groupingEnabled ? "none" : "visible"
         );
       }
       if (m.getLayer("points-glow")) {
         m.setLayoutProperty(
           "points-glow",
           "visibility",
-          heatmapEnabled || !groupingEnabled ? "none" : "visible",
+          heatmapEnabled || !groupingEnabled ? "none" : "visible"
         );
       }
       if (m.getLayer("points-raw")) {
         m.setLayoutProperty(
           "points-raw",
           "visibility",
-          heatmapEnabled || groupingEnabled ? "none" : "visible",
+          heatmapEnabled || groupingEnabled ? "none" : "visible"
         );
         m.setPaintProperty("points-raw", "circle-radius", pointRadius);
         m.setPaintProperty("points-raw", "circle-stroke-width", pointStroke);
@@ -894,14 +888,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         m.setLayoutProperty(
           "points-raw-icons",
           "visibility",
-          !useIcons || heatmapEnabled || groupingEnabled ? "none" : "visible",
+          !useIcons || heatmapEnabled || groupingEnabled ? "none" : "visible"
         );
       }
       if (m.getLayer("points-raw-glow")) {
         m.setLayoutProperty(
           "points-raw-glow",
           "visibility",
-          heatmapEnabled || groupingEnabled ? "none" : "visible",
+          heatmapEnabled || groupingEnabled ? "none" : "visible"
         );
       }
     };
@@ -978,7 +972,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           closeButton: true,
           closeOnClick: true,
         }).setLngLat(coords),
-        <IncidentPopupContent p={p} useIcons={useIcons} />,
+        <IncidentPopupContent p={p} useIcons={useIcons} />
       ).addTo(m);
     };
 
@@ -1033,7 +1027,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     void (async () => {
       startLoading();
       try {
-        const data = await fetchIncidentsGeoJSON({
+        const data = await fetchIncidents({
           bbox,
           filters,
           signal: ac.signal,
@@ -1083,7 +1077,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         closeButton: true,
         closeOnClick: true,
       }).setLngLat(center),
-      <IncidentPopupContent p={f.properties} useIcons={useIcons} />,
+      <IncidentPopupContent p={f.properties} useIcons={useIcons} />
     ).addTo(m);
   };
 
@@ -1104,7 +1098,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         closeButton: true,
         closeOnClick: true,
       }).setLngLat(center),
-      <SearchPopupContent label={String(label)} useIcons={useIcons} />,
+      <SearchPopupContent label={String(label)} useIcons={useIcons} />
     ).addTo(m);
   };
 
