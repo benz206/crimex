@@ -58,7 +58,9 @@ export function IncidentPopupContent({
     ? "Roadside tests are police screening checks and aren’t necessarily a reported incident."
     : "";
 
-  const bl = [city, caseNo ? `Case #${caseNo}` : ""].filter(Boolean).join(" · ");
+  const bl = [city, caseNo ? `Case #${caseNo}` : ""]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div

@@ -55,7 +55,7 @@ export function LoginClient({ redirectTo }: { redirectTo?: string }) {
         return;
       }
       setMsg(
-        "Account created. If email confirmation is enabled, check your inbox."
+        "Account created. If email confirmation is enabled, check your inbox.",
       );
       setMode("signin");
     } catch (e) {
