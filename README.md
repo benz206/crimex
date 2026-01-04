@@ -61,7 +61,7 @@ bun dev
   - Expected columns: `objectid` (int), `date_ms` (bigint ms), `city` (text), `description` (text), `case_no` (text), `lng` (float8), `lat` (float8).
 - **Auth (Supabase, optional)**:
   - If `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, the app enables `/login` and `/profile`.
-  - Uses email/password auth; configure providers and email confirmation in your Supabase dashboard.
+  - Uses Google OAuth; enable the Google provider in your Supabase dashboard.
 - **Basemaps + geocoding (MapTiler)**:
   - Basemap styles are fetched using your `NEXT_PUBLIC_MAPTILER_KEY`.
   - Search uses MapTiler’s geocoding API (Canada-scoped).
