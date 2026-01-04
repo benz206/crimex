@@ -1,4 +1,8 @@
-import type { BBox, IncidentFeatureCollection, IncidentFilters } from "@/lib/types";
+import type {
+  BBox,
+  IncidentFeatureCollection,
+  IncidentFilters,
+} from "@/lib/types";
 import { fetchIncidentsGeoJSON } from "@/lib/arcgis";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -22,7 +26,15 @@ export async function fetchIncidents(input: {
   signal?: AbortSignal;
 }): Promise<IncidentFeatureCollection> {
   const sb = getSupabaseClient();
-  if (!sb) {
+  const useSupabaseIncidents = (
+    process.env.NEXT_PUBLIC_SUPABASE_INCIDENTS ?? ""
+  )
+    .trim()
+    .toLowerCase();
+  const supabaseIncidentsEnabled =
+    useSupabaseIncidents === "1" || useSupabaseIncidents === "true";
+
+  if (!sb || !supabaseIncidentsEnabled) {
     return await fetchIncidentsGeoJSON({
       bbox: input.bbox,
       filters: input.filters,
@@ -35,7 +47,9 @@ export async function fetchIncidents(input: {
     .select("objectid,date_ms,city,description,case_no,lng,lat");
 
   const f = input.filters ?? {};
-  const cities = (f.city ?? []).filter((x) => typeof x === "string" && x.trim());
+  const cities = (f.city ?? []).filter(
+    (x) => typeof x === "string" && x.trim(),
+  );
   if (cities.length) q = q.in("city", cities);
 
   const descriptions = (f.description ?? []).filter(
@@ -58,7 +72,10 @@ export async function fetchIncidents(input: {
 
   const rows = (data ?? []) as unknown as SupabaseIncidentRow[];
 
-  const out: IncidentFeatureCollection = { type: "FeatureCollection", features: [] };
+  const out: IncidentFeatureCollection = {
+    type: "FeatureCollection",
+    features: [],
+  };
   for (const r of rows) {
     if (!isFiniteNumber(r.lng) || !isFiniteNumber(r.lat)) continue;
     if (!isFiniteNumber(r.objectid)) continue;
