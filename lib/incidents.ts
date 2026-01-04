@@ -22,7 +22,13 @@ export async function fetchIncidents(input: {
   signal?: AbortSignal;
 }): Promise<IncidentFeatureCollection> {
   const sb = getSupabaseClient();
-  if (!sb) {
+  const useSupabaseIncidents = (process.env.NEXT_PUBLIC_SUPABASE_INCIDENTS ?? "")
+    .trim()
+    .toLowerCase();
+  const supabaseIncidentsEnabled =
+    useSupabaseIncidents === "1" || useSupabaseIncidents === "true";
+
+  if (!sb || !supabaseIncidentsEnabled) {
     return await fetchIncidentsGeoJSON({
       bbox: input.bbox,
       filters: input.filters,

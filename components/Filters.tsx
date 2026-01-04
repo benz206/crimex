@@ -10,6 +10,7 @@ import {
 import type { IncidentFilters } from "@/lib/types";
 import { CustomSelect } from "@/components/CustomSelect";
 import { INCIDENT_TYPE_FILTER_OPTIONS } from "@/lib/incidentTypes";
+import { AuthButton } from "@/components/AuthButton";
 import {
   formatTorontoDatetimeLocal,
   parseTorontoDatetimeLocalToMs,
@@ -103,19 +104,27 @@ export function Filters({
             Halton Crime
           </div>
         </div>
-        <button
-          type="button"
-          className="ui-btn shrink-0"
-          onClick={() => {
-            const endMs = Date.now();
-            const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-            onFilters({ startMs, endMs, timePreset: "1m", hideRoadTests: true });
-            setQuery("");
-            setOpen(false);
-          }}
-        >
-          Reset
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <AuthButton />
+          <button
+            type="button"
+            className="ui-btn"
+            onClick={() => {
+              const endMs = Date.now();
+              const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
+              onFilters({
+                startMs,
+                endMs,
+                timePreset: "1m",
+                hideRoadTests: true,
+              });
+              setQuery("");
+              setOpen(false);
+            }}
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className="ui-divider" />

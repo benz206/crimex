@@ -1,0 +1,7 @@
+[build]
+  command = "bun install --frozen-lockfile && bun run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+
