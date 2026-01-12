@@ -2,7 +2,7 @@
 
 import { getSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Market = {
   id: string;
@@ -35,8 +35,8 @@ function useAccessToken() {
 
 export function MarketsClient() {
   const token = useAccessToken();
-  const headers = useMemo(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+  const authHeaders = useMemo<Record<string, string> | undefined>(
+    () => (token ? { Authorization: `Bearer ${token}` } : undefined),
     [token],
   );
 
@@ -45,31 +45,30 @@ export function MarketsClient() {
   const [title, setTitle] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = async () => {
-    setMsg(null);
+  const load = useCallback(async () => {
     const res = await fetch("/api/markets", { cache: "no-store" });
     const j = await res.json();
     setMarkets(j.markets ?? []);
 
     if (token) {
-      const w = await fetch("/api/me/wallet", { headers, cache: "no-store" });
+      const w = await fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" });
       const wj = await w.json();
       if (w.ok) setWallet({ balanceCents: Number(wj.wallet.balanceCents ?? wj.wallet.balance_cents ?? 0) });
     } else {
       setWallet(null);
     }
-  };
+  }, [authHeaders, token]);
 
   useEffect(() => {
     void load();
-  }, [token]);
+  }, [load]);
 
   const create = async () => {
     if (!token) return;
     setMsg(null);
     const res = await fetch("/api/markets", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
       body: JSON.stringify({ title }),
     });
     const j = await res.json();
@@ -85,7 +84,7 @@ export function MarketsClient() {
     if (!token) return;
     const res = await fetch("/api/me/wallet", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
       body: JSON.stringify({ amountCents: 10000 }),
     });
     const j = await res.json();

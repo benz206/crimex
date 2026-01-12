@@ -42,8 +42,8 @@ function useAccessToken() {
 
 export function MarketClient({ marketId }: { marketId: string }) {
   const token = useAccessToken();
-  const headers = useMemo(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+  const authHeaders = useMemo<Record<string, string> | undefined>(
+    () => (token ? { Authorization: `Bearer ${token}` } : undefined),
     [token],
   );
 
@@ -62,7 +62,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
   const load = async () => {
     setMsg(null);
     const res = await fetch(`/api/markets/${marketId}`, {
-      headers,
+      headers: authHeaders,
       cache: "no-store",
     });
     const j = await res.json();
@@ -74,7 +74,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
     setTop(j.top);
 
     if (token) {
-      const w = await fetch("/api/me/wallet", { headers, cache: "no-store" });
+      const w = await fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" });
       const wj = await w.json();
       if (w.ok) setWallet(wj.wallet);
     } else {
@@ -95,7 +95,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
         : `${Date.now()}-${Math.random()}`;
     const res = await fetch("/api/orders", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
       body: JSON.stringify({
         clientOrderId,
         marketId,
@@ -121,7 +121,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
     setMsg(null);
     const res = await fetch(`/api/markets/${marketId}/resolve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
       body: JSON.stringify({ resolvedOutcome }),
     });
     const j = await res.json();
