@@ -1,13 +1,14 @@
 import { LoginClient } from "./ui";
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: { redirectTo?: string };
+  searchParams?: Promise<{ redirectTo?: string }>;
 }) {
+  const sp = (await searchParams) ?? {};
   const redirectTo =
-    typeof searchParams?.redirectTo === "string"
-      ? searchParams.redirectTo
+    typeof sp.redirectTo === "string"
+      ? sp.redirectTo
       : undefined;
   return <LoginClient redirectTo={redirectTo} />;
 }

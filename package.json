@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "supabase:init": "supabase init",
+    "supabase:link": "supabase link",
+    "supabase:push": "supabase db push",
+    "supabase:pull": "supabase db pull"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -16,7 +20,8 @@
     "next": "16.1.1",
     "prettier": "^3.7.4",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "supabase": "^2.72.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

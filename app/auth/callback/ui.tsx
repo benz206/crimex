@@ -5,44 +5,49 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-export function LoginClient({ redirectTo }: { redirectTo?: string }) {
+export function AuthCallbackClient({
+  code,
+  redirectTo,
+}: {
+  code: string | null;
+  redirectTo?: string;
+}) {
   const router = useRouter();
+  const sb = getSupabaseClient();
+
   const safeRedirectTo = useMemo(() => {
     const raw = redirectTo || "/profile";
     return raw.startsWith("/") ? raw : "/profile";
   }, [redirectTo]);
 
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const sb = getSupabaseClient();
+  const [msg, setMsg] = useState<string | null>(() =>
+    code ? null : "Missing OAuth code.",
+  );
 
   useEffect(() => {
     if (!sb) return;
-    void sb.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace(safeRedirectTo);
-    });
-  }, [sb, router, safeRedirectTo]);
+    if (!code) return;
 
-  const signInWithGoogle = async () => {
-    if (!sb) return;
-    setMsg(null);
-    setBusy(true);
-    try {
-      const redirectUrl = new URL("/auth/callback", window.location.origin);
-      redirectUrl.searchParams.set("redirectTo", safeRedirectTo);
-
-      const { error } = await sb.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: redirectUrl.toString() },
+    let alive = true;
+    void sb.auth
+      .exchangeCodeForSession(code)
+      .then(({ error }) => {
+        if (!alive) return;
+        if (error) {
+          setMsg(error.message);
+          return;
+        }
+        router.replace(safeRedirectTo);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setMsg(e instanceof Error ? e.message : "Something went wrong.");
       });
-      if (error) throw error;
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  };
+
+    return () => {
+      alive = false;
+    };
+  }, [sb, code, router, safeRedirectTo]);
 
   return (
     <div className="min-h-dvh w-full bg-black">
@@ -51,10 +56,10 @@ export function LoginClient({ redirectTo }: { redirectTo?: string }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[20px] font-semibold text-white/95">
-                Account
+                Signing in
               </div>
               <div className="mt-1 text-[11px] leading-4 text-white/60">
-                Continue with Google to view your profile.
+                Finishing Google sign-in...
               </div>
             </div>
             <Link className="ui-btn h-9 px-3 text-[13px]" href="/">
@@ -76,27 +81,13 @@ export function LoginClient({ redirectTo }: { redirectTo?: string }) {
                 in <span className="font-mono">.env.local</span>.
               </div>
             </div>
+          ) : msg ? (
+            <div className="mt-4 ui-card text-[11px] leading-4 text-(--danger)">
+              {msg}
+            </div>
           ) : (
-            <div className="mt-4 flex flex-col gap-3">
-              {msg && (
-                <div
-                  className={
-                    "ui-card text-[11px] leading-4 " +
-                    "text-(--danger)"
-                  }
-                >
-                  {msg}
-                </div>
-              )}
-
-              <button
-                type="button"
-                className="ui-btn-primary"
-                disabled={busy}
-                onClick={() => void signInWithGoogle()}
-              >
-                {busy ? "Opening Google..." : "Continue with Google"}
-              </button>
+            <div className="mt-4 ui-card text-[12px] text-white/70">
+              Please wait...
             </div>
           )}
         </div>
@@ -104,3 +95,5 @@ export function LoginClient({ redirectTo }: { redirectTo?: string }) {
     </div>
   );
 }
+
+
