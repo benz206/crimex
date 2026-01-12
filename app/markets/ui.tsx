@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabaseClient } from "@/lib/supabase";
+import { useAccessToken } from "@/lib/useAccessToken";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -11,26 +11,10 @@ type Market = {
   createdAtMs: number;
 };
 
-function useAccessToken() {
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => {
-    const sb = getSupabaseClient();
-    if (!sb) return;
-    let alive = true;
-    void sb.auth.getSession().then(({ data }) => {
-      if (!alive) return;
-      setToken(data.session?.access_token ?? null);
-    });
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      if (!alive) return;
-      setToken(session?.access_token ?? null);
-    });
-    return () => {
-      alive = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-  return token;
+function dollarsToCents(s: string) {
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return NaN;
+  return Math.round(n * 100);
 }
 
 export function MarketsClient() {
@@ -43,6 +27,11 @@ export function MarketsClient() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [wallet, setWallet] = useState<{ balanceCents: number } | null>(null);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [openTime, setOpenTime] = useState("");
+  const [closeTime, setCloseTime] = useState("");
+  const [fundAmount, setFundAmount] = useState("100");
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -60,16 +49,27 @@ export function MarketsClient() {
   }, [authHeaders, token]);
 
   useEffect(() => {
-    void load();
+    const t = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   const create = async () => {
     if (!token) return;
     setMsg(null);
+    const openTimeMs = openTime.trim() ? Date.parse(openTime) : null;
+    const closeTimeMs = closeTime.trim() ? Date.parse(closeTime) : null;
     const res = await fetch("/api/markets", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({
+        title,
+        description: description.trim() ? description.trim() : null,
+        category: category.trim() ? category.trim() : null,
+        openTimeMs: Number.isFinite(openTimeMs) ? openTimeMs : null,
+        closeTimeMs: Number.isFinite(closeTimeMs) ? closeTimeMs : null,
+      }),
     });
     const j = await res.json();
     if (!res.ok) {
@@ -77,18 +77,32 @@ export function MarketsClient() {
       return;
     }
     setTitle("");
+    setDescription("");
+    setCategory("");
+    setOpenTime("");
+    setCloseTime("");
     await load();
   };
 
   const fund = async () => {
     if (!token) return;
+    setMsg(null);
+    const amountCents = dollarsToCents(fundAmount);
+    if (!Number.isInteger(amountCents) || amountCents <= 0) {
+      setMsg("Enter a valid funding amount.");
+      return;
+    }
     const res = await fetch("/api/me/wallet", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
-      body: JSON.stringify({ amountCents: 10000 }),
+      body: JSON.stringify({ amountCents }),
     });
     const j = await res.json();
-    if (res.ok) setWallet({ balanceCents: Number(j.wallet.balanceCents ?? 0) });
+    if (!res.ok) {
+      setMsg(j.message ?? "Funding failed.");
+      return;
+    }
+    setWallet({ balanceCents: Number(j.wallet.balanceCents ?? 0) });
   };
 
   return (
@@ -130,15 +144,29 @@ export function MarketsClient() {
                 : "Sign in to trade."}
             </div>
             {token && (
-              <button type="button" className="ui-btn-primary mt-3" onClick={() => void fund()}>
-                Add $100.00
-              </button>
+              <div className="mt-3 flex gap-2">
+                <input
+                  className="ui-input"
+                  inputMode="decimal"
+                  placeholder="Amount (USD)"
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="ui-btn-primary h-10 px-4"
+                  onClick={() => void fund()}
+                  disabled={!fundAmount.trim()}
+                >
+                  Fund
+                </button>
+              </div>
             )}
           </div>
 
           <div className="ui-panel p-4">
             <div className="text-[13px] font-semibold text-white/90">Create</div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 grid grid-cols-1 gap-2">
               <input
                 className="ui-input"
                 placeholder="Market title"
@@ -146,13 +174,43 @@ export function MarketsClient() {
                 onChange={(e) => setTitle(e.target.value)}
                 disabled={!token}
               />
+              <input
+                className="ui-input"
+                placeholder="Description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={!token}
+              />
+              <input
+                className="ui-input"
+                placeholder="Category (optional)"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                disabled={!token}
+              />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  className="ui-input"
+                  type="datetime-local"
+                  value={openTime}
+                  onChange={(e) => setOpenTime(e.target.value)}
+                  disabled={!token}
+                />
+                <input
+                  className="ui-input"
+                  type="datetime-local"
+                  value={closeTime}
+                  onChange={(e) => setCloseTime(e.target.value)}
+                  disabled={!token}
+                />
+              </div>
               <button
                 type="button"
-                className="ui-btn-primary h-10 px-4"
+                className="ui-btn-primary"
                 onClick={() => void create()}
                 disabled={!token || !title.trim()}
               >
-                Create
+                Create market
               </button>
             </div>
           </div>

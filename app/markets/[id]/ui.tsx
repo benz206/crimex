@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabaseClient } from "@/lib/supabase";
+import { useAccessToken } from "@/lib/useAccessToken";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -9,6 +9,11 @@ type Market = {
   title: string;
   status: string;
   createdBy: string;
+  description?: string | null;
+  category?: string | null;
+  openTimeMs?: number | null;
+  closeTimeMs?: number | null;
+  createdAtMs?: number;
 };
 
 type Top = {
@@ -18,27 +23,16 @@ type Top = {
   bestAskNo: number | null;
 };
 
-function useAccessToken() {
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => {
-    const sb = getSupabaseClient();
-    if (!sb) return;
-    let alive = true;
-    void sb.auth.getSession().then(({ data }) => {
-      if (!alive) return;
-      setToken(data.session?.access_token ?? null);
-    });
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      if (!alive) return;
-      setToken(session?.access_token ?? null);
-    });
-    return () => {
-      alive = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-  return token;
-}
+type Order = {
+  id: string;
+  outcome: "YES" | "NO";
+  side: "buy" | "sell";
+  priceCents: number;
+  qty: number;
+  remainingQty: number;
+  status: string;
+  createdAtMs: number;
+};
 
 export function MarketClient({ marketId }: { marketId: string }) {
   const token = useAccessToken();
@@ -52,6 +46,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
   const [wallet, setWallet] = useState<{ balanceCents: number } | null>(null);
   const [positions, setPositions] = useState<any[]>([]);
   const [trades, setTrades] = useState<any[]>([]);
+  const [lastOrder, setLastOrder] = useState<Order | null>(null);
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [outcome, setOutcome] = useState<"YES" | "NO">("YES");
@@ -110,9 +105,26 @@ export function MarketClient({ marketId }: { marketId: string }) {
       setMsg(j.message ?? "Order failed.");
       return;
     }
+    if (j.order) setLastOrder(j.order);
     setTrades(j.trades ?? []);
     setPositions(j.positions ?? []);
     setWallet(j.wallet ?? null);
+    await load();
+  };
+
+  const cancelLast = async () => {
+    if (!token || !lastOrder?.id) return;
+    setMsg(null);
+    const res = await fetch(`/api/orders/${lastOrder.id}/cancel`, {
+      method: "POST",
+      headers: authHeaders,
+    });
+    const j = await res.json();
+    if (!res.ok) {
+      setMsg(j.message ?? "Cancel failed.");
+      return;
+    }
+    setLastOrder((o) => (o ? { ...o, status: "cancelled", remainingQty: 0 } : o));
     await load();
   };
 
@@ -194,6 +206,35 @@ export function MarketClient({ marketId }: { marketId: string }) {
         </div>
 
         <div className="mt-3 ui-panel p-4">
+          <div className="text-[13px] font-semibold text-white/90">Details</div>
+          <div className="mt-2 text-[12px] text-white/70">
+            {market?.description ? <div>{market.description}</div> : <div>No description.</div>}
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="ui-card text-[12px] text-white/80">
+                <div className="text-[11px] text-white/60">Category</div>
+                <div className="mt-1">{market?.category ?? "—"}</div>
+              </div>
+              <div className="ui-card text-[12px] text-white/80">
+                <div className="text-[11px] text-white/60">Created by</div>
+                <div className="mt-1 break-all font-mono">{market?.createdBy ?? "—"}</div>
+              </div>
+              <div className="ui-card text-[12px] text-white/80">
+                <div className="text-[11px] text-white/60">Open</div>
+                <div className="mt-1">
+                  {market?.openTimeMs ? new Date(market.openTimeMs).toLocaleString() : "—"}
+                </div>
+              </div>
+              <div className="ui-card text-[12px] text-white/80">
+                <div className="text-[11px] text-white/60">Close</div>
+                <div className="mt-1">
+                  {market?.closeTimeMs ? new Date(market.closeTimeMs).toLocaleString() : "—"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 ui-panel p-4">
           <div className="text-[13px] font-semibold text-white/90">Place order</div>
           <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
             <select
@@ -270,6 +311,44 @@ export function MarketClient({ marketId }: { marketId: string }) {
                 ))
               )}
             </div>
+          </div>
+        </div>
+
+        <div className="mt-3 ui-panel p-4">
+          <div className="text-[13px] font-semibold text-white/90">Last order</div>
+          <div className="mt-3">
+            {!lastOrder ? (
+              <div className="ui-card text-[12px] text-white/70">No orders yet.</div>
+            ) : (
+              <div className="ui-card text-[12px] text-white/80">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white/90">
+                      {lastOrder.side.toUpperCase()} {lastOrder.outcome} {lastOrder.qty} @{" "}
+                      {lastOrder.priceCents}
+                    </div>
+                    <div className="mt-1 text-[11px] text-white/60">
+                      {lastOrder.status} • remaining {lastOrder.remainingQty} •{" "}
+                      {new Date(lastOrder.createdAtMs).toLocaleString()}
+                    </div>
+                    <div className="mt-1 break-all font-mono text-[11px] text-white/55">
+                      {lastOrder.id}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="ui-btn h-9 px-3 text-[13px]"
+                    onClick={() => void cancelLast()}
+                    disabled={
+                      !token ||
+                      !(lastOrder.status === "open" || lastOrder.status === "partially_filled")
+                    }
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
