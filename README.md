@@ -40,6 +40,29 @@ NEXT_PUBLIC_SUPABASE_INCIDENTS=0 or 1 (optional, default 0)
 bun dev
 ```
 
+## Supabase migrations (CLI)
+
+This repo uses Supabase CLI migrations under `supabase/migrations/`.
+
+- Create/link project:
+
+```bash
+bun supabase:link
+```
+
+- Apply migrations to the linked Supabase project:
+- TODO: Still need to create dev supabase vs prod supabase or maybe investigate local alternative or something
+
+```bash
+bun supabase:push
+```
+
+### GitHub Actions auto-deploy (optional)
+
+If you keep `.github/workflows/supabase-migrate.yml`, set these repo secrets:
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_PROJECT_REF`
+
 ## Deploy (Netlify)
 
 1. Netlify environment variables (Site settings → Environment variables):
