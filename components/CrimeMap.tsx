@@ -1217,9 +1217,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         </div>
       )}
 
-      <div className="pointer-events-none fixed left-3 bottom-3 z-40">
+      <div className="pointer-events-none fixed left-2 bottom-2 z-40 sm:left-3 sm:bottom-3">
         <div
-          className="ui-panel pointer-events-auto inline-flex max-w-[440px] flex-col gap-2 px-3 py-2 cursor-pointer"
+          className="ui-panel pointer-events-auto inline-flex max-w-[calc(100vw-1rem)] flex-col gap-1.5 px-2 py-1.5 cursor-pointer sm:max-w-[440px] sm:gap-2 sm:px-3 sm:py-2"
           role="button"
           tabIndex={0}
           onClick={() => setActiveHelpOpen(true)}
@@ -1228,7 +1228,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           }}
         >
           <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-white/60">
+            <div className="hidden text-[11px] font-semibold uppercase tracking-wide text-white/60 sm:block">
               Active
             </div>
             <button
@@ -1243,11 +1243,11 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               <CircleHelp size={16} />
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto">
             <button
               type="button"
               className={
-                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 cursor-pointer " +
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
                 (heatmapEnabled
                   ? "cursor-not-allowed bg-white/5 text-white/35"
                   : groupingEnabled
@@ -1263,7 +1263,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             >
               <span
                 className={
-                  "inline-flex h-4 w-4 items-center justify-center rounded-full border text-[11px] " +
+                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
                   (groupingEnabled
                     ? "border-white/35 text-white/85"
                     : "border-white/15 text-white/40")
@@ -1277,7 +1277,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <button
               type="button"
               className={
-                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 cursor-pointer " +
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
                 (useIcons
                   ? "bg-white/10 text-white/90 hover:bg-white/12"
                   : "bg-white/5 text-white/55 hover:bg-white/10")
@@ -1290,7 +1290,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             >
               <span
                 className={
-                  "inline-flex h-4 w-4 items-center justify-center rounded-full border text-[11px] " +
+                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
                   (useIcons
                     ? "border-white/35 text-white/85"
                     : "border-white/15 text-white/40")
@@ -1304,7 +1304,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <button
               type="button"
               className={
-                "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] ring-1 ring-white/10 cursor-pointer " +
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
                 (filters.hideRoadTests
                   ? "bg-white/10 text-white/90 hover:bg-white/12"
                   : "bg-white/5 text-white/55 hover:bg-white/10")
@@ -1317,7 +1317,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             >
               <span
                 className={
-                  "inline-flex h-4 w-4 items-center justify-center rounded-full border text-[11px] " +
+                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
                   (filters.hideRoadTests
                     ? "border-white/35 text-white/85"
                     : "border-white/15 text-white/40")
