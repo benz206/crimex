@@ -2,7 +2,7 @@
 
 import { useAccessToken } from "@/lib/useAccessToken";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Market = {
   id: string;
@@ -42,6 +42,46 @@ type Order = {
   createdAtMs: number;
 };
 
+type OrderbookTrade = {
+  id: string;
+  outcome: "YES" | "NO";
+  priceCents?: number;
+  price_cents?: number;
+  qty: number;
+};
+
+type Position = {
+  outcome: "YES" | "NO";
+  qty: number;
+};
+
+type Trade = {
+  id: string;
+  outcome: "YES" | "NO";
+  price_cents: number;
+  qty: number;
+  maker_user_id: string;
+  taker_user_id: string;
+  created_at: string;
+};
+
+type Bet = {
+  id: string;
+  outcome: "YES" | "NO";
+  amount_cents: number;
+  user_id: string;
+  created_at: string;
+};
+
+function shortenUserId(id: string) {
+  if (!id) return "anon";
+  return `${id.slice(0, 6)}…${id.slice(-4)}`;
+}
+
+function formatMoney(cents: number) {
+  return `$${(Number(cents) / 100).toFixed(2)}`;
+}
+
 export function MarketClient({ marketId }: { marketId: string }) {
   const token = useAccessToken();
   const authHeaders = useMemo<Record<string, string> | undefined>(
@@ -53,9 +93,13 @@ export function MarketClient({ marketId }: { marketId: string }) {
   const [top, setTop] = useState<Top | null>(null);
   const [pool, setPool] = useState<Pool | null>(null);
   const [wallet, setWallet] = useState<{ balanceCents: number } | null>(null);
-  const [positions, setPositions] = useState<any[]>([]);
-  const [trades, setTrades] = useState<any[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [trades, setTrades] = useState<OrderbookTrade[]>([]);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [activity, setActivity] = useState<{ trades: Trade[]; bets: Bet[] }>({
+    trades: [],
+    bets: [],
+  });
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [outcome, setOutcome] = useState<"YES" | "NO">("YES");
@@ -64,7 +108,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
   const [betAmount, setBetAmount] = useState("10");
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setMsg(null);
     const res = await fetch(`/api/markets/${marketId}`, {
       headers: authHeaders,
@@ -79,6 +123,15 @@ export function MarketClient({ marketId }: { marketId: string }) {
     setTop(j.top ?? null);
     setPool(j.pool ?? null);
 
+    const activityRes = await fetch(`/api/markets/${marketId}/activity`, { cache: "no-store" });
+    const activityJson = await activityRes.json();
+    if (activityRes.ok) {
+      setActivity({
+        trades: activityJson.trades ?? [],
+        bets: activityJson.bets ?? [],
+      });
+    }
+
     if (token) {
       const w = await fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" });
       const wj = await w.json();
@@ -86,11 +139,14 @@ export function MarketClient({ marketId }: { marketId: string }) {
     } else {
       setWallet(null);
     }
-  };
+  }, [authHeaders, marketId, token]);
 
   useEffect(() => {
-    void load();
-  }, [token, marketId]);
+    const t = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   const submit = async () => {
     if (!token) return;
@@ -294,7 +350,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
               <select
                 className="ui-select"
                 value={side}
-                onChange={(e) => setSide(e.target.value as any)}
+                onChange={(e) => setSide(e.target.value === "sell" ? "sell" : "buy")}
                 disabled={!token}
               >
                 <option value="buy">Buy</option>
@@ -303,7 +359,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
               <select
                 className="ui-select"
                 value={outcome}
-                onChange={(e) => setOutcome(e.target.value as any)}
+                onChange={(e) => setOutcome(e.target.value === "NO" ? "NO" : "YES")}
                 disabled={!token}
               >
                 <option value="YES">YES</option>
@@ -343,7 +399,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
               <select
                 className="ui-select"
                 value={outcome}
-                onChange={(e) => setOutcome(e.target.value as any)}
+                onChange={(e) => setOutcome(e.target.value === "NO" ? "NO" : "YES")}
                 disabled={!token}
               >
                 <option value="YES">YES</option>
@@ -369,38 +425,80 @@ export function MarketClient({ marketId }: { marketId: string }) {
           </div>
         )}
 
-        {market?.marketType !== "parimutuel" && (
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="ui-panel p-4">
-              <div className="text-[13px] font-semibold text-white/90">My positions</div>
-              <div className="mt-3 flex flex-col gap-2">
-                {positions.length === 0 ? (
-                  <div className="ui-card text-[12px] text-white/70">No positions.</div>
-                ) : (
-                  positions.map((p, i) => (
-                    <div key={i} className="ui-card text-[12px] text-white/80">
-                      {p.outcome}: {p.qty}
-                    </div>
-                  ))
-                )}
-              </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="ui-panel p-4">
+            <div className="text-[13px] font-semibold text-white/90">
+              {market?.marketType === "parimutuel" ? "Recent bets" : "Last fills"}
             </div>
-            <div className="ui-panel p-4">
-              <div className="text-[13px] font-semibold text-white/90">Last fills</div>
-              <div className="mt-3 flex flex-col gap-2">
-                {trades.length === 0 ? (
-                  <div className="ui-card text-[12px] text-white/70">No fills.</div>
+            <div className="mt-3 flex flex-col gap-2">
+              {market?.marketType === "parimutuel" ? (
+                activity.bets.length === 0 ? (
+                  <div className="ui-card text-[12px] text-white/70">No bets yet.</div>
                 ) : (
-                  trades.map((t, i) => (
-                    <div key={i} className="ui-card text-[12px] text-white/80">
-                      {t.outcome} {t.qty} @ {t.priceCents ?? t.price_cents}
+                  activity.bets.map((b) => (
+                    <div key={b.id} className="ui-card text-[12px] text-white/80">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-white/90">
+                          {b.outcome} · {formatMoney(b.amount_cents)}
+                        </div>
+                        <div className="text-[11px] text-white/50">
+                          {new Date(b.created_at).toLocaleTimeString()}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        {shortenUserId(b.user_id)}
+                      </div>
                     </div>
                   ))
-                )}
-              </div>
+                )
+              ) : trades.length === 0 ? (
+                <div className="ui-card text-[12px] text-white/70">No fills.</div>
+              ) : (
+                trades.map((t) => (
+                  <div key={t.id} className="ui-card text-[12px] text-white/80">
+                    {t.outcome} {t.qty} @ {t.priceCents ?? t.price_cents}
+                  </div>
+                ))
+              )}
             </div>
           </div>
-        )}
+          <div className="ui-panel p-4">
+            <div className="text-[13px] font-semibold text-white/90">
+              {market?.marketType === "parimutuel" ? "Recent trades" : "My positions"}
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {market?.marketType === "parimutuel" ? (
+                activity.trades.length === 0 ? (
+                  <div className="ui-card text-[12px] text-white/70">No trades yet.</div>
+                ) : (
+                  activity.trades.map((t) => (
+                    <div key={t.id} className="ui-card text-[12px] text-white/80">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-white/90">
+                          {t.outcome} {t.qty} @ {t.price_cents}
+                        </div>
+                        <div className="text-[11px] text-white/50">
+                          {new Date(t.created_at).toLocaleTimeString()}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        {shortenUserId(t.maker_user_id)} · {shortenUserId(t.taker_user_id)}
+                      </div>
+                    </div>
+                  ))
+                )
+              ) : positions.length === 0 ? (
+                <div className="ui-card text-[12px] text-white/70">No positions.</div>
+              ) : (
+                positions.map((p, i) => (
+                  <div key={i} className="ui-card text-[12px] text-white/80">
+                    {p.outcome}: {p.qty}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
 
         {market?.marketType !== "parimutuel" && (
           <div className="mt-3 ui-panel p-4">

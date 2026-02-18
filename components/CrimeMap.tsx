@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import maplibregl, {
@@ -1105,6 +1106,18 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   return (
     <div className="relative h-full w-full">
       <div className="ui-panel absolute top-3 left-3 right-3 z-10 hidden w-auto max-w-[400px] p-4 md:block md:right-auto md:w-[400px]">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-white/90">Play the markets</div>
+            <div className="mt-1 text-[11px] leading-4 text-white/60">
+              Use fake money to bet on outcomes.
+            </div>
+          </div>
+          <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
+            Open
+          </Link>
+        </div>
+        <div className="ui-divider mb-3" />
         <Filters
           styleId={currentStyleId}
           onStyleId={(v) => setCurrentStyleId(v)}
@@ -1121,6 +1134,9 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       </div>
 
       <div className="fixed right-3 bottom-3 z-20 flex flex-col gap-2 md:hidden">
+        <Link className="ui-btn h-10 px-4 text-[13px]" href="/markets">
+          Markets
+        </Link>
         <button
           type="button"
           className={mobilePanel === "filters" ? "ui-btn-primary" : "ui-btn"}
