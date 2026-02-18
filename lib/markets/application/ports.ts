@@ -1,4 +1,14 @@
-import type { Outcome, Order, Position, Trade, Wallet, Market } from "../domain/types";
+import type {
+  Outcome,
+  Order,
+  Position,
+  Trade,
+  Wallet,
+  Market,
+  MarketType,
+  ParimutuelBet,
+  ParimutuelPool,
+} from "../domain/types";
 
 export type CreateMarketInput = {
   title: string;
@@ -6,6 +16,7 @@ export type CreateMarketInput = {
   category?: string | null;
   openTimeMs?: number | null;
   closeTimeMs?: number | null;
+  marketType?: MarketType;
 };
 
 export type PlaceOrderInput = {
@@ -26,9 +37,11 @@ export type PlaceOrderResult = {
 
 export interface MarketRepo {
   create(userId: string, input: CreateMarketInput): Promise<Market>;
+  createParimutuel(userId: string, input: CreateMarketInput): Promise<Market>;
   list(): Promise<Market[]>;
   getById(id: string): Promise<Market | null>;
   resolve(marketId: string, resolvedOutcome: Outcome, resolvedBy: string): Promise<void>;
+  resolveParimutuel(marketId: string, resolvedOutcome: Outcome, resolvedBy: string): Promise<void>;
 }
 
 export interface TradingRepo {
@@ -46,6 +59,24 @@ export interface TradingRepo {
 export interface WalletRepo {
   getOrCreate(userId: string): Promise<Wallet>;
   fund(userId: string, amountCents: number): Promise<Wallet>;
+  claimDailyBonus(userId: string): Promise<Wallet>;
+}
+
+export type PlaceParimutuelBetInput = {
+  marketId: string;
+  outcome: Outcome;
+  amountCents: number;
+};
+
+export type PlaceParimutuelBetResult = {
+  bet: ParimutuelBet;
+  wallet: Wallet;
+  pool: ParimutuelPool;
+};
+
+export interface ParimutuelRepo {
+  placeBet(userId: string, input: PlaceParimutuelBetInput): Promise<PlaceParimutuelBetResult>;
+  getPool(marketId: string): Promise<ParimutuelPool | null>;
 }
 
 export interface PositionsRepo {

@@ -9,6 +9,7 @@ type Market = {
   title: string;
   status: string;
   createdAtMs: number;
+  marketType?: "orderbook" | "parimutuel";
 };
 
 function dollarsToCents(s: string) {
@@ -32,6 +33,7 @@ export function MarketsClient() {
   const [openTime, setOpenTime] = useState("");
   const [closeTime, setCloseTime] = useState("");
   const [fundAmount, setFundAmount] = useState("100");
+  const [marketType, setMarketType] = useState<"orderbook" | "parimutuel">("orderbook");
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -69,6 +71,7 @@ export function MarketsClient() {
         category: category.trim() ? category.trim() : null,
         openTimeMs: Number.isFinite(openTimeMs) ? openTimeMs : null,
         closeTimeMs: Number.isFinite(closeTimeMs) ? closeTimeMs : null,
+        marketType,
       }),
     });
     const j = await res.json();
@@ -81,6 +84,7 @@ export function MarketsClient() {
     setCategory("");
     setOpenTime("");
     setCloseTime("");
+    setMarketType("orderbook");
     await load();
   };
 
@@ -100,6 +104,21 @@ export function MarketsClient() {
     const j = await res.json();
     if (!res.ok) {
       setMsg(j.message ?? "Funding failed.");
+      return;
+    }
+    setWallet({ balanceCents: Number(j.wallet.balanceCents ?? 0) });
+  };
+
+  const claimBonus = async () => {
+    if (!token) return;
+    setMsg(null);
+    const res = await fetch("/api/me/bonus", {
+      method: "POST",
+      headers: { ...(authHeaders ?? {}) },
+    });
+    const j = await res.json();
+    if (!res.ok) {
+      setMsg(j.message ?? "Bonus claim failed.");
       return;
     }
     setWallet({ balanceCents: Number(j.wallet.balanceCents ?? 0) });
@@ -144,21 +163,26 @@ export function MarketsClient() {
                 : "Sign in to trade."}
             </div>
             {token && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  className="ui-input"
-                  inputMode="decimal"
-                  placeholder="Amount (USD)"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="ui-btn-primary h-10 px-4"
-                  onClick={() => void fund()}
-                  disabled={!fundAmount.trim()}
-                >
-                  Fund
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    className="ui-input"
+                    inputMode="decimal"
+                    placeholder="Amount (USD)"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="ui-btn-primary h-10 px-4"
+                    onClick={() => void fund()}
+                    disabled={!fundAmount.trim()}
+                  >
+                    Fund
+                  </button>
+                </div>
+                <button type="button" className="ui-btn h-10 px-4" onClick={() => void claimBonus()}>
+                  Claim daily $10
                 </button>
               </div>
             )}
@@ -204,6 +228,15 @@ export function MarketsClient() {
                   disabled={!token}
                 />
               </div>
+              <select
+                className="ui-select"
+                value={marketType}
+                onChange={(e) => setMarketType(e.target.value as "orderbook" | "parimutuel")}
+                disabled={!token}
+              >
+                <option value="orderbook">Orderbook</option>
+                <option value="parimutuel">Parimutuel</option>
+              </select>
               <button
                 type="button"
                 className="ui-btn-primary"
@@ -233,7 +266,7 @@ export function MarketsClient() {
                       {m.title}
                     </div>
                     <div className="mt-1 text-[11px] leading-4 text-white/60">
-                      {m.status}
+                      {m.status} {m.marketType ? `• ${m.marketType}` : ""}
                     </div>
                   </div>
                   <div className="text-[11px] text-white/50">

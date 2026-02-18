@@ -8,6 +8,7 @@ type Market = {
   id: string;
   title: string;
   status: string;
+  marketType?: "orderbook" | "parimutuel";
   createdBy: string;
   description?: string | null;
   category?: string | null;
@@ -21,6 +22,13 @@ type Top = {
   bestAskYes: number | null;
   bestBidNo: number | null;
   bestAskNo: number | null;
+};
+
+type Pool = {
+  marketId: string;
+  yesPoolCents: number;
+  noPoolCents: number;
+  updatedAtMs: number;
 };
 
 type Order = {
@@ -43,6 +51,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
 
   const [market, setMarket] = useState<Market | null>(null);
   const [top, setTop] = useState<Top | null>(null);
+  const [pool, setPool] = useState<Pool | null>(null);
   const [wallet, setWallet] = useState<{ balanceCents: number } | null>(null);
   const [positions, setPositions] = useState<any[]>([]);
   const [trades, setTrades] = useState<any[]>([]);
@@ -52,6 +61,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
   const [outcome, setOutcome] = useState<"YES" | "NO">("YES");
   const [priceCents, setPriceCents] = useState(50);
   const [qty, setQty] = useState(1);
+  const [betAmount, setBetAmount] = useState("10");
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = async () => {
@@ -66,7 +76,8 @@ export function MarketClient({ marketId }: { marketId: string }) {
       return;
     }
     setMarket(j.market);
-    setTop(j.top);
+    setTop(j.top ?? null);
+    setPool(j.pool ?? null);
 
     if (token) {
       const w = await fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" });
@@ -134,7 +145,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
     const res = await fetch(`/api/markets/${marketId}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
-      body: JSON.stringify({ resolvedOutcome }),
+      body: JSON.stringify({ resolvedOutcome, marketType: market?.marketType }),
     });
     const j = await res.json();
     if (!res.ok) {
@@ -142,6 +153,28 @@ export function MarketClient({ marketId }: { marketId: string }) {
       return;
     }
     await load();
+  };
+
+  const placeBet = async () => {
+    if (!token) return;
+    setMsg(null);
+    const amountCents = Math.round(Number(betAmount) * 100);
+    if (!Number.isFinite(amountCents) || amountCents <= 0) {
+      setMsg("Enter a valid bet amount.");
+      return;
+    }
+    const res = await fetch(`/api/markets/${marketId}/parimutuel/bet`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
+      body: JSON.stringify({ outcome, amountCents }),
+    });
+    const j = await res.json();
+    if (!res.ok) {
+      setMsg(j.message ?? "Bet failed.");
+      return;
+    }
+    setWallet(j.wallet ?? null);
+    setPool(j.pool ?? null);
   };
 
   return (
@@ -175,23 +208,43 @@ export function MarketClient({ marketId }: { marketId: string }) {
         )}
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="ui-panel p-4">
-            <div className="text-[13px] font-semibold text-white/90">Order book</div>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-[12px] text-white/70">
-              <div className="ui-card">
-                <div className="text-[11px] text-white/60">YES</div>
-                <div className="mt-1">
-                  Bid: {top?.bestBidYes ?? "—"} / Ask: {top?.bestAskYes ?? "—"}
+          {market?.marketType !== "parimutuel" ? (
+            <div className="ui-panel p-4">
+              <div className="text-[13px] font-semibold text-white/90">Order book</div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-[12px] text-white/70">
+                <div className="ui-card">
+                  <div className="text-[11px] text-white/60">YES</div>
+                  <div className="mt-1">
+                    Bid: {top?.bestBidYes ?? "—"} / Ask: {top?.bestAskYes ?? "—"}
+                  </div>
                 </div>
-              </div>
-              <div className="ui-card">
-                <div className="text-[11px] text-white/60">NO</div>
-                <div className="mt-1">
-                  Bid: {top?.bestBidNo ?? "—"} / Ask: {top?.bestAskNo ?? "—"}
+                <div className="ui-card">
+                  <div className="text-[11px] text-white/60">NO</div>
+                  <div className="mt-1">
+                    Bid: {top?.bestBidNo ?? "—"} / Ask: {top?.bestAskNo ?? "—"}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="ui-panel p-4">
+              <div className="text-[13px] font-semibold text-white/90">Pool</div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-[12px] text-white/70">
+                <div className="ui-card">
+                  <div className="text-[11px] text-white/60">YES</div>
+                  <div className="mt-1">
+                    ${(Number(pool?.yesPoolCents ?? 0) / 100).toFixed(2)}
+                  </div>
+                </div>
+                <div className="ui-card">
+                  <div className="text-[11px] text-white/60">NO</div>
+                  <div className="mt-1">
+                    ${(Number(pool?.noPoolCents ?? 0) / 100).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="ui-panel p-4">
             <div className="text-[13px] font-semibold text-white/90">Wallet</div>
@@ -234,123 +287,160 @@ export function MarketClient({ marketId }: { marketId: string }) {
           </div>
         </div>
 
-        <div className="mt-3 ui-panel p-4">
-          <div className="text-[13px] font-semibold text-white/90">Place order</div>
-          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
-            <select
-              className="ui-select"
-              value={side}
-              onChange={(e) => setSide(e.target.value as any)}
+        {market?.marketType !== "parimutuel" ? (
+          <div className="mt-3 ui-panel p-4">
+            <div className="text-[13px] font-semibold text-white/90">Place order</div>
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+              <select
+                className="ui-select"
+                value={side}
+                onChange={(e) => setSide(e.target.value as any)}
+                disabled={!token}
+              >
+                <option value="buy">Buy</option>
+                <option value="sell">Sell</option>
+              </select>
+              <select
+                className="ui-select"
+                value={outcome}
+                onChange={(e) => setOutcome(e.target.value as any)}
+                disabled={!token}
+              >
+                <option value="YES">YES</option>
+                <option value="NO">NO</option>
+              </select>
+              <input
+                className="ui-input"
+                type="number"
+                min={0}
+                max={100}
+                value={priceCents}
+                onChange={(e) => setPriceCents(Number(e.target.value))}
+                disabled={!token}
+              />
+              <input
+                className="ui-input"
+                type="number"
+                min={1}
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
+                disabled={!token}
+              />
+            </div>
+            <button
+              type="button"
+              className="ui-btn-primary mt-3"
+              onClick={() => void submit()}
               disabled={!token}
             >
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
-            <select
-              className="ui-select"
-              value={outcome}
-              onChange={(e) => setOutcome(e.target.value as any)}
-              disabled={!token}
-            >
-              <option value="YES">YES</option>
-              <option value="NO">NO</option>
-            </select>
-            <input
-              className="ui-input"
-              type="number"
-              min={0}
-              max={100}
-              value={priceCents}
-              onChange={(e) => setPriceCents(Number(e.target.value))}
-              disabled={!token}
-            />
-            <input
-              className="ui-input"
-              type="number"
-              min={1}
-              value={qty}
-              onChange={(e) => setQty(Number(e.target.value))}
-              disabled={!token}
-            />
+              Submit
+            </button>
           </div>
-          <button
-            type="button"
-            className="ui-btn-primary mt-3"
-            onClick={() => void submit()}
-            disabled={!token}
-          >
-            Submit
-          </button>
-        </div>
-
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="ui-panel p-4">
-            <div className="text-[13px] font-semibold text-white/90">My positions</div>
-            <div className="mt-3 flex flex-col gap-2">
-              {positions.length === 0 ? (
-                <div className="ui-card text-[12px] text-white/70">No positions.</div>
-              ) : (
-                positions.map((p, i) => (
-                  <div key={i} className="ui-card text-[12px] text-white/80">
-                    {p.outcome}: {p.qty}
-                  </div>
-                ))
-              )}
+        ) : (
+          <div className="mt-3 ui-panel p-4">
+            <div className="text-[13px] font-semibold text-white/90">Place bet</div>
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+              <select
+                className="ui-select"
+                value={outcome}
+                onChange={(e) => setOutcome(e.target.value as any)}
+                disabled={!token}
+              >
+                <option value="YES">YES</option>
+                <option value="NO">NO</option>
+              </select>
+              <input
+                className="ui-input"
+                type="number"
+                min={1}
+                value={betAmount}
+                onChange={(e) => setBetAmount(e.target.value)}
+                disabled={!token}
+              />
+              <button
+                type="button"
+                className="ui-btn-primary h-10 px-4"
+                onClick={() => void placeBet()}
+                disabled={!token}
+              >
+                Bet
+              </button>
             </div>
           </div>
-          <div className="ui-panel p-4">
-            <div className="text-[13px] font-semibold text-white/90">Last fills</div>
-            <div className="mt-3 flex flex-col gap-2">
-              {trades.length === 0 ? (
-                <div className="ui-card text-[12px] text-white/70">No fills.</div>
-              ) : (
-                trades.map((t, i) => (
-                  <div key={i} className="ui-card text-[12px] text-white/80">
-                    {t.outcome} {t.qty} @ {t.priceCents ?? t.price_cents}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+        )}
 
-        <div className="mt-3 ui-panel p-4">
-          <div className="text-[13px] font-semibold text-white/90">Last order</div>
-          <div className="mt-3">
-            {!lastOrder ? (
-              <div className="ui-card text-[12px] text-white/70">No orders yet.</div>
-            ) : (
-              <div className="ui-card text-[12px] text-white/80">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-white/90">
-                      {lastOrder.side.toUpperCase()} {lastOrder.outcome} {lastOrder.qty} @{" "}
-                      {lastOrder.priceCents}
+        {market?.marketType !== "parimutuel" && (
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="ui-panel p-4">
+              <div className="text-[13px] font-semibold text-white/90">My positions</div>
+              <div className="mt-3 flex flex-col gap-2">
+                {positions.length === 0 ? (
+                  <div className="ui-card text-[12px] text-white/70">No positions.</div>
+                ) : (
+                  positions.map((p, i) => (
+                    <div key={i} className="ui-card text-[12px] text-white/80">
+                      {p.outcome}: {p.qty}
                     </div>
-                    <div className="mt-1 text-[11px] text-white/60">
-                      {lastOrder.status} • remaining {lastOrder.remainingQty} •{" "}
-                      {new Date(lastOrder.createdAtMs).toLocaleString()}
-                    </div>
-                    <div className="mt-1 break-all font-mono text-[11px] text-white/55">
-                      {lastOrder.id}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="ui-btn h-9 px-3 text-[13px]"
-                    onClick={() => void cancelLast()}
-                    disabled={
-                      !token ||
-                      !(lastOrder.status === "open" || lastOrder.status === "partially_filled")
-                    }
-                  >
-                    Cancel
-                  </button>
-                </div>
+                  ))
+                )}
               </div>
-            )}
+            </div>
+            <div className="ui-panel p-4">
+              <div className="text-[13px] font-semibold text-white/90">Last fills</div>
+              <div className="mt-3 flex flex-col gap-2">
+                {trades.length === 0 ? (
+                  <div className="ui-card text-[12px] text-white/70">No fills.</div>
+                ) : (
+                  trades.map((t, i) => (
+                    <div key={i} className="ui-card text-[12px] text-white/80">
+                      {t.outcome} {t.qty} @ {t.priceCents ?? t.price_cents}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {market?.marketType !== "parimutuel" && (
+          <div className="mt-3 ui-panel p-4">
+            <div className="text-[13px] font-semibold text-white/90">Last order</div>
+            <div className="mt-3">
+              {!lastOrder ? (
+                <div className="ui-card text-[12px] text-white/70">No orders yet.</div>
+              ) : (
+                <div className="ui-card text-[12px] text-white/80">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-white/90">
+                        {lastOrder.side.toUpperCase()} {lastOrder.outcome} {lastOrder.qty} @{" "}
+                        {lastOrder.priceCents}
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/60">
+                        {lastOrder.status} • remaining {lastOrder.remainingQty} •{" "}
+                        {new Date(lastOrder.createdAtMs).toLocaleString()}
+                      </div>
+                      <div className="mt-1 break-all font-mono text-[11px] text-white/55">
+                        {lastOrder.id}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="ui-btn h-9 px-3 text-[13px]"
+                      onClick={() => void cancelLast()}
+                      disabled={
+                        !token ||
+                        !(lastOrder.status === "open" || lastOrder.status === "partially_filled")
+                      }
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {token && (
           <div className="mt-3 ui-panel p-4">

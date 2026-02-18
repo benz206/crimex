@@ -8,11 +8,22 @@ export async function createMarket(
 ) {
   if (!ctx.userId) throw new UnauthorizedError();
   if (!input.title?.trim()) throw new ValidationError("title is required");
+  if (input.marketType === "parimutuel") {
+    return await deps.marketRepo.createParimutuel(ctx.userId, {
+      title: input.title.trim(),
+      description: input.description ?? null,
+      category: input.category ?? null,
+      openTimeMs: input.openTimeMs ?? null,
+      closeTimeMs: input.closeTimeMs ?? null,
+      marketType: "parimutuel",
+    });
+  }
   return await deps.marketRepo.create(ctx.userId, {
     title: input.title.trim(),
     description: input.description ?? null,
     category: input.category ?? null,
     openTimeMs: input.openTimeMs ?? null,
     closeTimeMs: input.closeTimeMs ?? null,
+    marketType: input.marketType ?? "orderbook",
   });
 }

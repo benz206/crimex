@@ -17,11 +17,7 @@ export async function POST(
     const res = await resolveMarket(
       { marketRepo },
       { userId: "authed" },
-      {
-        marketId: id,
-        resolvedOutcome: b?.resolvedOutcome as "YES" | "NO",
-        marketType: b?.marketType as "orderbook" | "parimutuel" | undefined,
-      },
+      { marketId: id, resolvedOutcome: b?.resolvedOutcome as "YES" | "NO", marketType: "parimutuel" },
     );
     return Response.json(res);
   } catch (e) {

@@ -35,3 +35,15 @@ export class InsufficientFundsError extends AppError {
     super("INSUFFICIENT_FUNDS", message);
   }
 }
+
+export class BonusCooldownError extends AppError {
+  constructor(message = "Bonus cooldown active") {
+    super("BONUS_COOLDOWN", message);
+  }
+}
+
+export class InvalidMarketTypeError extends AppError {
+  constructor(message = "Invalid market type") {
+    super("INVALID_MARKET_TYPE", message);
+  }
+}

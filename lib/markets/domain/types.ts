@@ -1,6 +1,7 @@
 import type { Cents } from "./primitives";
 
 export type MarketStatus = "open" | "closed" | "resolved" | "cancelled";
+export type MarketType = "orderbook" | "parimutuel";
 export type Outcome = "YES" | "NO";
 export type Side = "buy" | "sell";
 
@@ -12,6 +13,7 @@ export type Market = {
   openTimeMs: number | null;
   closeTimeMs: number | null;
   status: MarketStatus;
+  marketType: MarketType;
   createdBy: string;
   createdAtMs: number;
 };
@@ -69,7 +71,32 @@ export type LedgerType =
   | "trade_cash"
   | "move_to_collateral"
   | "release_collateral"
-  | "settlement";
+  | "settlement"
+  | "daily_bonus"
+  | "parimutuel_bet"
+  | "parimutuel_payout"
+  | "parimutuel_refund";
+
+export type ParimutuelPool = {
+  marketId: string;
+  yesPoolCents: number;
+  noPoolCents: number;
+  updatedAtMs: number;
+};
+
+export type ParimutuelBet = {
+  id: string;
+  marketId: string;
+  userId: string;
+  outcome: Outcome;
+  amountCents: number;
+  createdAtMs: number;
+};
+
+export type DailyBonusClaim = {
+  userId: string;
+  claimedAtMs: number;
+};
 
 export type LedgerEntry = {
   id: string;

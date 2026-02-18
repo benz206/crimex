@@ -39,6 +39,12 @@ export async function POST(req: Request) {
         category: typeof b?.category === "string" ? b.category : null,
         openTimeMs: typeof b?.openTimeMs === "number" ? b.openTimeMs : null,
         closeTimeMs: typeof b?.closeTimeMs === "number" ? b.closeTimeMs : null,
+        marketType:
+          b?.marketType === "parimutuel"
+            ? "parimutuel"
+            : b?.marketType === "orderbook"
+              ? "orderbook"
+              : undefined,
       },
     );
     return Response.json({ market }, { status: 201 });
