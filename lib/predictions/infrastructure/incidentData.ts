@@ -6,6 +6,19 @@ import type {
 } from "../domain/types";
 import { fetchIncidentsGeoJSON } from "@/lib/arcgis";
 
+const isRoadsideTest = (desc?: string) => {
+  const d = (desc ?? "").trim().toUpperCase();
+  return d === "ROADSIDE TEST" || d === "ROAD TEST" || d === "ROADTEST";
+};
+
+const isFederalStats = (desc?: string) => {
+  const d = (desc ?? "").trim().toUpperCase();
+  return d.startsWith("FEDERAL STATS");
+};
+
+const shouldExclude = (desc?: string) =>
+  isRoadsideTest(desc) || isFederalStats(desc);
+
 function aggregate(
   features: {
     properties: { DESCRIPTION?: string; CITY?: string };
@@ -69,6 +82,9 @@ export class ArcGISIncidentData implements IncidentDataPort {
     const filtered = fc.features.filter((f) => {
       const dateMs = f.properties.DATE;
       if (typeof dateMs !== "number") return false;
+      if (params.excludeRoadsideTests && shouldExclude(f.properties.DESCRIPTION)) {
+        return false;
+      }
       const d = new Date(dateMs);
       return (
         d.getUTCHours() === params.hourOfDay &&
@@ -82,6 +98,9 @@ export class ArcGISIncidentData implements IncidentDataPort {
     const fc = await fetchIncidentsGeoJSON({
       filters: { startMs: params.windowStartMs, endMs: params.windowEndMs },
     });
-    return aggregate(fc.features as any);
+    const filtered = params.excludeRoadsideTests
+      ? fc.features.filter((f) => !shouldExclude(f.properties.DESCRIPTION))
+      : fc.features;
+    return aggregate(filtered as any);
   }
 }

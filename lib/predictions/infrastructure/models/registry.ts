@@ -1,7 +1,15 @@
 import type { PredictionModelPort } from "../../application/ports";
 import { BaselineModel } from "./baseline";
+import { MovingAverageModel } from "./movingAverage";
+import { TrendModel } from "./trend";
+import { PoissonModel } from "./poisson";
 
-const models: PredictionModelPort[] = [new BaselineModel()];
+const models: PredictionModelPort[] = [
+  new BaselineModel(),
+  new MovingAverageModel(),
+  new TrendModel(),
+  new PoissonModel(),
+];
 
 const modelMap = new Map<string, PredictionModelPort>(
   models.map((m) => [m.id, m]),

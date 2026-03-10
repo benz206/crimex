@@ -16,6 +16,7 @@ export async function evaluatePrediction(
   const actuals = await deps.incidentData.fetchActual({
     windowStartMs: run.windowStartMs,
     windowEndMs: run.windowEndMs,
+    excludeRoadsideTests: true,
   });
 
   await deps.predictionRepo.updateActuals(

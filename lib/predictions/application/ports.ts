@@ -10,6 +10,7 @@ import type {
   ActualQuery,
   PredictInput,
   PredictOutput,
+  TrainInput,
 } from "../domain/types";
 
 export type CreateRunInput = {
@@ -24,6 +25,7 @@ export type CreateRunInput = {
 export interface PredictionModelPort {
   id: string;
   predict(input: PredictInput): Promise<PredictOutput[]>;
+  train?(input: TrainInput): Promise<void>;
 }
 
 export interface IncidentDataPort {

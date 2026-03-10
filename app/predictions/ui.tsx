@@ -19,6 +19,11 @@ type PredictionRun = {
   createdAtMs: number;
 };
 
+type PredictionModelOption = {
+  id: string;
+  trainable: boolean;
+};
+
 const STATUS_COLORS: Record<string, string> = {
   pending: "text-yellow-400",
   running: "text-blue-400",
@@ -37,15 +42,22 @@ export function PredictionsClient() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [horizonHours, setHorizonHours] = useState(4);
   const [modelId, setModelId] = useState("baseline-v1");
+  const [excludeRoadsideTests, setExcludeRoadsideTests] = useState(true);
+  const [training, setTraining] = useState(false);
+  const [models, setModels] = useState<PredictionModelOption[]>([
+    { id: "baseline-v1", trainable: false },
+  ]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const url = new URL("/api/predictions", window.location.origin);
     if (statusFilter) url.searchParams.set("status", statusFilter);
+    url.searchParams.set("includeModels", "1");
     const res = await fetch(url.toString(), { cache: "no-store" });
     const j = await res.json();
     setRuns(j.runs ?? []);
+    if (Array.isArray(j.models) && j.models.length > 0) setModels(j.models);
   }, [statusFilter]);
 
   useEffect(() => {
@@ -63,7 +75,7 @@ export function PredictionsClient() {
       const res = await fetch("/api/predictions", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
-        body: JSON.stringify({ modelId, horizonHours }),
+        body: JSON.stringify({ modelId, horizonHours, excludeRoadsideTests }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -74,7 +86,33 @@ export function PredictionsClient() {
     } finally {
       setLoading(false);
     }
-  }, [token, authHeaders, modelId, horizonHours, load]);
+  }, [token, authHeaders, modelId, horizonHours, excludeRoadsideTests, load]);
+
+  const trainSelectedModel = useCallback(async () => {
+    if (!token) return;
+    setTraining(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/predictions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
+        body: JSON.stringify({
+          action: "train",
+          modelId,
+          horizonHours,
+          excludeRoadsideTests,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setMsg(j.message ?? "Failed to train model.");
+        return;
+      }
+      setMsg(`Training started for ${j.training?.modelId ?? modelId}.`);
+    } finally {
+      setTraining(false);
+    }
+  }, [token, authHeaders, modelId, horizonHours, excludeRoadsideTests]);
 
   return (
     <div className="min-h-dvh w-full bg-black">
@@ -118,10 +156,21 @@ export function PredictionsClient() {
                 onChange={(e) => setModelId(e.target.value)}
                 disabled={!token}
               >
-                <option value="baseline-v1">
-                  Historical Average (baseline-v1)
-                </option>
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.id}
+                  </option>
+                ))}
               </select>
+              <label className="flex items-center gap-2 text-[11px] text-white/70">
+                <input
+                  type="checkbox"
+                  checked={excludeRoadsideTests}
+                  onChange={(e) => setExcludeRoadsideTests(e.target.checked)}
+                  disabled={!token}
+                />
+                Exclude roadside tests
+              </label>
               <div className="flex items-center gap-2">
                 <label className="shrink-0 text-[11px] text-white/60">
                   Horizon (hours)
@@ -143,6 +192,18 @@ export function PredictionsClient() {
                 disabled={!token || loading}
               >
                 {loading ? "Running..." : "Run Prediction"}
+              </button>
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={() => void trainSelectedModel()}
+                disabled={
+                  !token ||
+                  training ||
+                  !models.find((m) => m.id === modelId)?.trainable
+                }
+              >
+                {training ? "Training..." : "Train Model"}
               </button>
               {!token && (
                 <div className="text-[11px] text-white/40">

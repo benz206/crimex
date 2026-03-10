@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabaseClient } from "@/lib/supabase";
+import { CircleUserRound, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -11,7 +12,6 @@ export function AuthButton() {
   useEffect(() => {
     const sb = getSupabaseClient();
     if (!sb) {
-      setSignedIn(null);
       return;
     }
 
@@ -37,10 +37,11 @@ export function AuthButton() {
   return (
     <button
       type="button"
-      className="ui-btn"
+      className="ui-btn inline-flex items-center gap-2"
       onClick={() => router.push(signedIn ? "/profile" : "/login")}
     >
-      {signedIn ? "Profile" : "Sign in"}
+      {signedIn ? <CircleUserRound size={14} /> : <LogIn size={14} />}
+      <span>{signedIn ? "Profile" : "Sign in"}</span>
     </button>
   );
 }

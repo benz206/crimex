@@ -12,9 +12,11 @@ import maplibregl, {
 import {
   Car,
   CheckCircle2,
+  CircleUserRound,
   CircleHelp,
   DoorOpen,
   Home,
+  RotateCcw,
   ShieldAlert,
   ShoppingBag,
 } from "lucide-react";
@@ -277,9 +279,27 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const predictionsDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const [predictionData, setPredictionData] = useState<PredictionData | null>(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionRuns, setPredictionRuns] = useState<
+    Array<{
+      id: string;
+      modelId: string;
+      status: "pending" | "running" | "completed" | "failed";
+      horizonHours: number;
+      windowStartMs: number;
+      windowEndMs: number;
+      triggeredBy: "cron" | "manual";
+      startedAtMs: number | null;
+      completedAtMs: number | null;
+      errorMessage: string | null;
+      createdAtMs: number;
+    }>
+  >([]);
+  const [selectedPredictionRunId, setSelectedPredictionRunId] = useState<string | null>(null);
+  const [selectedPredictionId, setSelectedPredictionId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"incidents" | "predictions">("incidents");
   const [groupingEnabled, setGroupingEnabled] = useState(true);
   const [heatmapSettingsOpen, setHeatmapSettingsOpen] = useState(false);
+  const [filterResetConfirmOpen, setFilterResetConfirmOpen] = useState(false);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(
     DEFAULT_HEATMAP_SETTINGS,
   );
@@ -996,12 +1016,38 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const loadPredictions = useCallback(async (signal?: AbortSignal) => {
     setPredictionLoading(true);
     try {
-      const runsRes = await fetch("/api/predictions?status=completed", { cache: "no-store", signal });
+      const runsRes = await fetch("/api/predictions?status=completed", {
+        cache: "no-store",
+        signal,
+      });
       const runsData = await runsRes.json();
-      const runs = runsData.runs ?? [];
-      if (runs.length === 0) { setPredictionLoading(false); return; }
-      const latestRun = runs[0];
-      const detailRes = await fetch(`/api/predictions/${latestRun.id}`, { cache: "no-store", signal });
+      const runs = (runsData.runs ?? []) as Array<{
+        id: string;
+        modelId: string;
+        status: "pending" | "running" | "completed" | "failed";
+        horizonHours: number;
+        windowStartMs: number;
+        windowEndMs: number;
+        triggeredBy: "cron" | "manual";
+        startedAtMs: number | null;
+        completedAtMs: number | null;
+        errorMessage: string | null;
+        createdAtMs: number;
+      }>;
+      setPredictionRuns(runs);
+      if (runs.length === 0) {
+        setPredictionData(null);
+        setSelectedPredictionRunId(null);
+        setPredictionLoading(false);
+        return;
+      }
+      const targetRunId =
+        selectedPredictionRunId && runs.some((r) => r.id === selectedPredictionRunId)
+          ? selectedPredictionRunId
+          : runs[0]!.id;
+      if (targetRunId !== selectedPredictionRunId) setSelectedPredictionRunId(targetRunId);
+      const targetRun = runs.find((r) => r.id === targetRunId) ?? runs[0]!;
+      const detailRes = await fetch(`/api/predictions/${targetRun.id}`, { cache: "no-store", signal });
       const detail = await detailRes.json();
       const predictions = (detail.predictions ?? []) as Array<{
         id: string; runId: string;
@@ -1025,7 +1071,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         }));
       const fc: GeoJSON.FeatureCollection = { type: "FeatureCollection", features };
       predictionsDataRef.current = fc;
-      setPredictionData({ run: latestRun, predictions });
+      setPredictionData({ run: targetRun, predictions });
+      setSelectedPredictionId((prev) =>
+        prev && predictions.some((p) => p.id === prev) ? prev : null,
+      );
       const m = mapRef.current;
       if (m && m.isStyleLoaded() && m.getSource("predictions")) {
         (m.getSource("predictions") as maplibregl.GeoJSONSource).setData(fc);
@@ -1034,7 +1083,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     } finally {
       setPredictionLoading(false);
     }
-  }, []);
+  }, [selectedPredictionRunId]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -1043,13 +1092,24 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   }, [loadPredictions]);
 
   const flyToPrediction = useCallback(
-    (p: { lat: number | null; lng: number | null; incidentType: string; city: string | null; predictedCount: number; confidence: number | null }) => {
+    (p: {
+      id?: string;
+      lat: number | null;
+      lng: number | null;
+      incidentType: string;
+      city: string | null;
+      predictedCount: number;
+      confidence: number | null;
+    }) => {
       const m = mapRef.current;
       if (!m || p.lat == null || p.lng == null) return;
       const center: [number, number] = [p.lng, p.lat];
       m.easeTo({ center, zoom: Math.max(m.getZoom(), 13) });
 
       if (!predictionsEnabled) setPredictionsEnabled(true);
+      if (typeof p.id === "string") {
+        setSelectedPredictionId(p.id);
+      }
 
       popupRef.current?.remove();
       popupRef.current = popupWithReact(
@@ -1254,9 +1314,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               Use fake money to bet on outcomes.
             </div>
           </div>
-          <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
-            Open
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
+              Markets
+            </Link>
+            <Link className="ui-btn h-9 px-3 text-[13px]" href="/predictions">
+              Predictions
+            </Link>
+          </div>
         </div>
         <div className="ui-divider mb-3" />
         <Filters
@@ -1304,8 +1369,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <PredictionsPanel
               data={predictionData}
               loading={predictionLoading}
+              runs={predictionRuns}
+              selectedRunId={selectedPredictionRunId}
+              onRunId={setSelectedPredictionRunId}
               onPick={flyToPrediction}
               onRefresh={() => void loadPredictions()}
+              selectedPredictionId={selectedPredictionId}
             />
           )}
         </div>
@@ -1399,11 +1468,15 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                 <PredictionsPanel
                   data={predictionData}
                   loading={predictionLoading}
+                  runs={predictionRuns}
+                  selectedRunId={selectedPredictionRunId}
+                  onRunId={setSelectedPredictionRunId}
                   onPick={(p) => {
                     flyToPrediction(p);
                     setMobilePanel(null);
                   }}
                   onRefresh={() => void loadPredictions()}
+                  selectedPredictionId={selectedPredictionId}
                 />
               ) : (
                 <div className="h-full overflow-hidden">
@@ -1427,9 +1500,64 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         onEnabled={setHeatmapEnabled}
         settings={heatmapSettings}
         onSettings={setHeatmapSettings}
-        onReset={() => setHeatmapSettings(DEFAULT_HEATMAP_SETTINGS)}
         onClose={() => setHeatmapSettingsOpen(false)}
       />
+
+      <div className="pointer-events-none fixed right-3 bottom-3 z-40 hidden md:block">
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            className="ui-btn inline-flex h-9 w-9 items-center justify-center p-0"
+            aria-label="Reset filters"
+            onClick={() => setFilterResetConfirmOpen(true)}
+          >
+            <RotateCcw size={14} />
+          </button>
+          <Link
+            href="/profile"
+            className="ui-btn inline-flex h-9 w-9 items-center justify-center p-0"
+            aria-label="Profile"
+          >
+            <CircleUserRound size={14} />
+          </Link>
+        </div>
+        {filterResetConfirmOpen && (
+          <div className="ui-panel absolute right-0 bottom-12 w-[280px] p-3">
+            <div className="text-[13px] font-semibold text-white/90">
+              Reset filters?
+            </div>
+            <div className="mt-1 text-[11px] leading-4 text-white/60">
+              This resets map filters to the default 1 month range.
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="ui-btn h-8 px-2.5 text-[11px]"
+                onClick={() => setFilterResetConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ui-btn-primary h-8 px-2.5 text-[11px]"
+                onClick={() => {
+                  const endMs = Date.now();
+                  const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
+                  setFilters({
+                    startMs,
+                    endMs,
+                    timePreset: "1m",
+                    hideRoadTests: true,
+                  });
+                  setFilterResetConfirmOpen(false);
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {isLoading && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center">

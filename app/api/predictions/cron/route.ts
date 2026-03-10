@@ -19,7 +19,12 @@ export async function POST(req: Request) {
       for (const horizonHours of DEFAULT_HORIZONS) {
         const run = await runPrediction(
           { predictionRepo, incidentData, model },
-          { horizonHours, triggeredBy: "cron", createdBy: null },
+          {
+            horizonHours,
+            triggeredBy: "cron",
+            createdBy: null,
+            excludeRoadsideTests: true,
+          },
         );
         results.push(run);
       }

@@ -10,7 +10,6 @@ import {
 import type { IncidentFilters } from "@/lib/types";
 import { CustomSelect } from "@/components/CustomSelect";
 import { INCIDENT_TYPE_FILTER_OPTIONS } from "@/lib/incidentTypes";
-import { AuthButton } from "@/components/AuthButton";
 import {
   formatTorontoDatetimeLocal,
   parseTorontoDatetimeLocalToMs,
@@ -100,31 +99,11 @@ export function Filters({
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[25px] font-semibold text-white/95">
+          <div className="-mt-1 text-[25px] font-semibold text-white/95">
             Halton Crime
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <AuthButton />
-          <button
-            type="button"
-            className="ui-btn"
-            onClick={() => {
-              const endMs = Date.now();
-              const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-              onFilters({
-                startMs,
-                endMs,
-                timePreset: "1m",
-                hideRoadTests: true,
-              });
-              setQuery("");
-              setOpen(false);
-            }}
-          >
-            Reset
-          </button>
-        </div>
+        <div className="shrink-0" />
       </div>
 
       <div className="ui-divider" />

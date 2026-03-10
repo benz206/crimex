@@ -12,6 +12,7 @@ export async function runPrediction(
     horizonHours: number;
     triggeredBy: TriggerType;
     createdBy: string | null;
+    excludeRoadsideTests?: boolean;
   },
 ) {
   if (input.horizonHours < 1 || input.horizonHours > 24) {
@@ -43,6 +44,7 @@ export async function runPrediction(
       hourOfDay: windowStart.getUTCHours(),
       dayOfWeek: windowStart.getUTCDay(),
       weeksBack: 8,
+      excludeRoadsideTests: input.excludeRoadsideTests ?? true,
     });
     console.log("[runPrediction] historical data fetched", { count: historicalData.length });
 

@@ -46,9 +46,11 @@ const STATUS_COLORS: Record<string, string> = {
 const PredictionItem = memo(function PredictionItem({
   prediction,
   onPick,
+  selected,
 }: {
   prediction: Prediction;
   onPick: (p: Prediction) => void;
+  selected: boolean;
 }) {
   const s = getIncidentStyle(prediction.incidentType);
   const absError =
@@ -59,7 +61,10 @@ const PredictionItem = memo(function PredictionItem({
   return (
     <button
       type="button"
-      className="ui-card relative cursor-pointer overflow-hidden"
+      className={
+        "ui-card relative cursor-pointer overflow-hidden text-left transition " +
+        (selected ? "ring-2 ring-[#ff6ea0]/80 bg-[#ff6ea0]/8" : "")
+      }
       onClick={() => onPick(prediction)}
       disabled={prediction.lat == null || prediction.lng == null}
     >
@@ -139,14 +144,28 @@ function computeStats(predictions: Prediction[]) {
 type Props = {
   data: PredictionData | null;
   loading: boolean;
+  runs: PredictionRun[];
+  selectedRunId: string | null;
+  onRunId: (id: string) => void;
   onPick: (prediction: Prediction) => void;
   onRefresh: () => void;
+  selectedPredictionId: string | null;
 };
 
-export function PredictionsPanel({ data, loading, onPick, onRefresh }: Props) {
+export function PredictionsPanel({
+  data,
+  loading,
+  runs,
+  selectedRunId,
+  onRunId,
+  onPick,
+  onRefresh,
+  selectedPredictionId,
+}: Props) {
   const [sortKey, setSortKey] = useState<"count" | "confidence" | "type">(
     "count",
   );
+  const [runSelectorOpen, setRunSelectorOpen] = useState(false);
 
   const stats = useMemo(
     () => (data ? computeStats(data.predictions) : null),
@@ -177,14 +196,28 @@ export function PredictionsPanel({ data, loading, onPick, onRefresh }: Props) {
               Predictions
             </div>
           </div>
-          <button
-            type="button"
-            className="ui-btn h-8 px-2.5 text-[11px]"
-            onClick={onRefresh}
-            disabled={loading}
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="ui-btn h-8 px-2.5 text-[11px]"
+              onClick={() => setRunSelectorOpen(true)}
+              disabled={runs.length === 0}
+            >
+              {selectedRunId
+                ? `${new Date(
+                    runs.find((r) => r.id === selectedRunId)?.createdAtMs ?? 0,
+                  ).toLocaleString()}`
+                : "Select Run"}
+            </button>
+            <button
+              type="button"
+              className="ui-btn h-8 px-2.5 text-[11px]"
+              onClick={onRefresh}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -303,11 +336,82 @@ export function PredictionsPanel({ data, loading, onPick, onRefresh }: Props) {
           <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-3">
             <div className="flex flex-col gap-2">
               {sorted.map((p) => (
-                <PredictionItem key={p.id} prediction={p} onPick={onPick} />
+                <PredictionItem
+                  key={p.id}
+                  prediction={p}
+                  onPick={onPick}
+                  selected={selectedPredictionId === p.id}
+                />
               ))}
             </div>
           </div>
+
         </>
+      )}
+
+      {runSelectorOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 md:p-6"
+          onClick={() => setRunSelectorOpen(false)}
+        >
+          <div
+            className="ui-panel w-full max-w-[560px] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+              <div className="text-sm font-semibold text-white/90">
+                Select Prediction Run
+              </div>
+              <button
+                type="button"
+                className="ui-btn h-8 px-2.5 text-[11px]"
+                onClick={() => setRunSelectorOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="ui-divider mx-4" />
+            <div className="max-h-[60dvh] overflow-auto p-4">
+              <div className="flex flex-col gap-2">
+                {runs.length === 0 ? (
+                  <div className="ui-card text-[12px] text-white/60">No runs available.</div>
+                ) : (
+                  runs.map((r) => {
+                    const active = selectedRunId === r.id;
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        className={
+                          "ui-card text-left transition " +
+                          (active ? "ring-2 ring-[#ff6ea0]/80 bg-[#ff6ea0]/8" : "")
+                        }
+                        onClick={() => {
+                          onRunId(r.id);
+                          setRunSelectorOpen(false);
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-semibold text-white/90">
+                              {new Date(r.createdAtMs).toLocaleString()}
+                            </div>
+                            <div className="mt-1 text-[11px] text-white/60">
+                              {r.modelId} - {r.horizonHours}h
+                            </div>
+                          </div>
+                          <div className={`text-[11px] ${STATUS_COLORS[r.status] ?? "text-white/70"}`}>
+                            {r.status}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
