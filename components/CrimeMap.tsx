@@ -272,6 +272,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     "filters" | "incidents" | null
   >(null);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [predictionsEnabled, setPredictionsEnabled] = useState(false);
+  const predictionsDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const [groupingEnabled, setGroupingEnabled] = useState(true);
   const [heatmapSettingsOpen, setHeatmapSettingsOpen] = useState(false);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(
@@ -708,6 +710,36 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       map.setLayoutProperty("points-raw-glow", "visibility", "none");
       applyHeatmapSettings(map, heatmapSettingsRef.current);
 
+      map.addSource("predictions", {
+        type: "geojson",
+        data: predictionsDataRef.current ?? { type: "FeatureCollection", features: [] },
+      });
+
+      map.addLayer(
+        {
+          id: "prediction-hotspots",
+          type: "circle",
+          source: "predictions",
+          paint: {
+            "circle-color": "#ff6ea0",
+            "circle-radius": [
+              "interpolate", ["linear"], ["get", "predictedCount"],
+              1, 8,
+              10, 18,
+              50, 30,
+            ],
+            "circle-opacity": 0.6,
+            "circle-blur": 0.4,
+            "circle-stroke-color": "#ff6ea0",
+            "circle-stroke-width": 1,
+            "circle-stroke-opacity": 0.8,
+          },
+        },
+        beforeLabels,
+      );
+
+      map.setLayoutProperty("prediction-hotspots", "visibility", "none");
+
       if (pulseRafRef.current != null) {
         cancelAnimationFrame(pulseRafRef.current);
         pulseRafRef.current = null;
@@ -917,6 +949,13 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           heatmapEnabled || groupingEnabled ? "none" : "visible",
         );
       }
+      if (m.getLayer("prediction-hotspots")) {
+        m.setLayoutProperty(
+          "prediction-hotspots",
+          "visibility",
+          predictionsEnabled ? "visible" : "none",
+        );
+      }
     };
 
     if (m.isStyleLoaded()) {
@@ -928,7 +967,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     return () => {
       m.off("load", apply);
     };
-  }, [heatmapEnabled, groupingEnabled, styleUrl, useIcons]);
+  }, [heatmapEnabled, groupingEnabled, predictionsEnabled, styleUrl, useIcons]);
 
   useEffect(() => {
     const m = mapRef.current;
@@ -949,6 +988,47 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       m.off("load", apply);
     };
   }, [heatmapSettings, styleUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const runsRes = await fetch("/api/predictions?status=completed", { cache: "no-store" });
+        const runsData = await runsRes.json();
+        const runs = runsData.runs ?? [];
+        if (runs.length === 0) return;
+        const latestRun = runs[0];
+        const detailRes = await fetch(`/api/predictions/${latestRun.id}`, { cache: "no-store" });
+        const detail = await detailRes.json();
+        const predictions = (detail.predictions ?? []) as Array<{
+          lat: number | null; lng: number | null;
+          incidentType: string; city: string;
+          predictedCount: number; confidence?: number;
+        }>;
+        const features = predictions
+          .filter((p) => p.lat != null && p.lng != null)
+          .map((p) => ({
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
+            properties: {
+              incidentType: p.incidentType,
+              city: p.city,
+              predictedCount: p.predictedCount,
+              confidence: p.confidence ?? 0,
+            },
+          }));
+        const fc: GeoJSON.FeatureCollection = { type: "FeatureCollection", features };
+        if (!cancelled) {
+          predictionsDataRef.current = fc;
+          const m = mapRef.current;
+          if (m && m.isStyleLoaded() && m.getSource("predictions")) {
+            (m.getSource("predictions") as maplibregl.GeoJSONSource).setData(fc);
+          }
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const m = mapRef.current;
@@ -1278,6 +1358,33 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             </button>
           </div>
           <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto">
+            <button
+              type="button"
+              className={
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
+                (predictionsEnabled
+                  ? "bg-[#ff6ea0]/20 text-[#ff6ea0] hover:bg-[#ff6ea0]/25"
+                  : "bg-white/5 text-white/55 hover:bg-white/10")
+              }
+              aria-pressed={predictionsEnabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPredictionsEnabled((v) => !v);
+              }}
+            >
+              <span
+                className={
+                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
+                  (predictionsEnabled
+                    ? "border-[#ff6ea0]/50 text-[#ff6ea0]"
+                    : "border-white/15 text-white/40")
+                }
+              >
+                {predictionsEnabled ? "✓" : ""}
+              </span>
+              <span>Predictions</span>
+            </button>
+
             <button
               type="button"
               className={
