@@ -7,8 +7,49 @@ import {
   formatIncidentDescription,
   getIncidentStyle,
 } from "@/lib/incidentStyle";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { CustomSelect } from "@/components/CustomSelect";
+
+const SidebarItem = memo(function SidebarItem({
+  feature,
+  onPick,
+}: {
+  feature: IncidentFeature;
+  onPick: (item: IncidentFeature) => void;
+}) {
+  const s = getIncidentStyle(feature.properties.DESCRIPTION);
+  return (
+    <button
+      key={String(feature.properties.OBJECTID)}
+      type="button"
+      className="ui-card relative cursor-pointer overflow-hidden"
+      onClick={() => onPick(feature)}
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-2 gap-x-3 gap-y-1 items-start">
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold text-white/95">
+            {formatIncidentDescription(feature.properties.DESCRIPTION) || "Incident"}
+          </div>
+        </div>
+        <div className="shrink-0 justify-self-end">
+          <div className="inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/75 ring-1 ring-white/10">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+              <span>{s.category}</span>
+            </span>
+          </div>
+        </div>
+        <div className="min-w-0 text-[11px] text-white/65">
+          <div className="truncate">{formatCity(feature.properties.CITY) || ""}</div>
+        </div>
+        <div className="shrink-0 justify-self-end text-[11px] text-white/65">
+          {formatIncidentDate(feature.properties.DATE)}
+        </div>
+      </div>
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: s.color }} />
+    </button>
+  );
+});
 
 type Props = {
   items: IncidentFeature[];
@@ -130,52 +171,13 @@ export function Sidebar({ items, onPick }: Props) {
       <div className="ui-divider mx-4" />
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-3">
         <div className="flex flex-col gap-2">
-          {paged.map((f) => {
-            const s = getIncidentStyle(f.properties.DESCRIPTION);
-            return (
-              <button
-                key={String(f.properties.OBJECTID)}
-                type="button"
-                className="ui-card relative cursor-pointer overflow-hidden"
-                onClick={() => onPick(f)}
-              >
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-2 gap-x-3 gap-y-1 items-start">
-                  <div className="min-w-0">
-                    <div className="text-[14px] font-semibold text-white/95">
-                      {formatIncidentDescription(f.properties.DESCRIPTION) ||
-                        "Incident"}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 justify-self-end">
-                    <div className="inline-flex rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/75 ring-1 ring-white/10">
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: s.color }}
-                        />
-                        <span>{s.category}</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 text-[11px] text-white/65">
-                    <div className="truncate">
-                      {formatCity(f.properties.CITY) || ""}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 justify-self-end text-[11px] text-white/65">
-                    {formatIncidentDate(f.properties.DATE)}
-                  </div>
-                </div>
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-1"
-                  style={{ backgroundColor: s.color }}
-                />
-              </button>
-            );
-          })}
+          {paged.map((f) => (
+            <SidebarItem
+              key={String(f.properties.OBJECTID)}
+              feature={f}
+              onPick={onPick}
+            />
+          ))}
         </div>
       </div>
 

@@ -13,6 +13,10 @@ export function httpErrorResponse(e: unknown): Response {
               ? 409
               : e.code === "INSUFFICIENT_FUNDS"
                 ? 409
+                : e.code === "BONUS_COOLDOWN"
+                  ? 409
+                  : e.code === "INVALID_MARKET_TYPE"
+                    ? 400
                 : 500;
     return Response.json({ error: e.code, message: e.message }, { status });
   }

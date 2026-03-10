@@ -3,18 +3,11 @@ import { listMarkets } from "@/lib/markets/application/usecases/listMarkets";
 import { createAuthedSupabaseClient } from "@/lib/markets/infrastructure/supabaseAuthedClient";
 import { SupabaseMarketRepo } from "@/lib/markets/infrastructure/supabaseRepos";
 import { httpErrorResponse, requireBearerToken } from "@/lib/markets/presentation/http";
-import { createClient } from "@supabase/supabase-js";
-
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!url || !anonKey) throw new Error("Supabase not configured");
-  return createClient(url, anonKey, { auth: { persistSession: false } });
-}
+import { getAnonServerClient } from "@/lib/supabase";
 
 export async function GET() {
   try {
-    const sb = createAnonClient();
+    const sb = getAnonServerClient();
     const marketRepo = new SupabaseMarketRepo(sb);
     const markets = await listMarkets({ marketRepo });
     return Response.json({ markets });
@@ -39,6 +32,12 @@ export async function POST(req: Request) {
         category: typeof b?.category === "string" ? b.category : null,
         openTimeMs: typeof b?.openTimeMs === "number" ? b.openTimeMs : null,
         closeTimeMs: typeof b?.closeTimeMs === "number" ? b.closeTimeMs : null,
+        marketType:
+          b?.marketType === "parimutuel"
+            ? "parimutuel"
+            : b?.marketType === "orderbook"
+              ? "orderbook"
+              : undefined,
       },
     );
     return Response.json({ market }, { status: 201 });

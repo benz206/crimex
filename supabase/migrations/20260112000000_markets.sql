@@ -146,7 +146,8 @@ create or replace function public.create_market_v1(
   description text,
   category text,
   open_time timestamptz,
-  close_time timestamptz
+  close_time timestamptz,
+  market_type text default 'orderbook'
 )
 returns public.markets
 language plpgsql
@@ -165,10 +166,10 @@ begin
   end if;
 
   insert into public.markets(
-    title, description, category, open_time, close_time, status, created_by
+    title, description, category, open_time, close_time, status, created_by, market_type
   )
   values (
-    trim(title), description, category, open_time, close_time, 'open', uid
+    trim(title), description, category, open_time, close_time, 'open', uid, coalesce(market_type, 'orderbook')
   )
   returning * into m;
 

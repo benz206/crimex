@@ -1,0 +1,193 @@
+---
+description: Full project architecture, conventions, and performance patterns for crimex (Halton Crime Map + Prediction Markets + Crime Prediction Engine)
+globs:
+alwaysApply: true
+---
+
+# Crimex Architecture
+
+## Stack
+
+- **Framework**: Next.js 16 (App Router) + React 19
+- **Language**: TypeScript 5 (strict mode)
+- **Styling**: Tailwind CSS v4 (configured via CSS, no tailwind.config file)
+- **Database/Auth**: Supabase (Postgres RPC-heavy, Row Level Security)
+- **Maps**: MapLibre GL JS v5 + MapTiler basemaps
+- **Data Source**: HRPS ArcGIS FeatureServer (crime incidents) or Supabase `incidents` table
+- **Icons**: Lucide React
+- **Package Manager**: Bun
+- **Path Alias**: `@/*` maps to project root
+
+## Directory Structure
+
+```
+app/                          # Next.js App Router pages
+├── page.tsx                  # Home — full-screen CrimeMap (client component, lazy-loads CrimeMap)
+├── layout.tsx                # Root layout (server component, fonts)
+├── globals.css               # Tailwind v4 + custom CSS variables/utility classes
+├── login/                    # Auth login flow
+├── profile/                  # User profile
+├── markets/                  # Prediction markets list
+│   └── [id]/                 # Single market detail
+├── predictions/              # Crime prediction runs list
+│   └── [id]/                 # Single prediction run detail
+├── auth/callback/            # Supabase OAuth callback
+└── api/                      # Route handlers (all server-side)
+    ├── markets/              # CRUD, auto-create, auto-resolve
+    ├── predictions/          # Prediction runs CRUD, cron trigger, evaluation
+    │   ├── [id]/             # Single run detail
+    │   ├── cron/             # Hourly cron endpoint (secret-gated)
+    │   └── evaluate/         # Evaluate expired prediction windows
+    ├── orders/               # Place/cancel orders
+    └── me/                   # Wallet, daily bonus
+
+components/                   # Shared React components (all "use client")
+├── CrimeMap.tsx              # MapLibre map — largest component (~1450 lines)
+├── Sidebar.tsx               # Incident list with sort/pagination, memoized items
+├── Filters.tsx               # Map filter controls + geocode search
+├── HeatmapSettingsPanel.tsx  # Heatmap config modal
+├── AuthButton.tsx            # Sign in/profile button
+├── CustomSelect.tsx          # Styled dropdown
+├── HomeOverlayNav.tsx        # Top nav on map page
+├── IncidentPopupContent.tsx  # MapLibre popup for incidents
+└── SearchPopupContent.tsx    # MapLibre popup for search results
+
+lib/                          # Shared utilities and business logic
+├── supabase.ts               # SINGLETON browser + server Supabase clients
+├── useAccessToken.ts         # React hook — Supabase session access token
+├── incidents.ts              # Fetches incidents (Supabase or ArcGIS fallback)
+├── arcgis.ts                 # ArcGIS FeatureServer client with pagination
+├── maptiler.ts               # MapTiler style URLs + geocoding
+├── incidentStyle.ts          # Incident → category/color mapping
+├── incidentTypes.ts          # Incident type filter option list
+├── time.ts                   # Toronto timezone helpers
+├── types.ts                  # Shared frontend types (BBox, IncidentFeature, filters, etc.)
+├── markets/                  # CLEAN/HEXAGONAL ARCHITECTURE for prediction markets
+│   ├── domain/
+│   │   ├── types.ts           # Market, Order, Trade, Position, Wallet, etc.
+│   │   └── primitives.ts      # Branded types (Cents, etc.)
+│   ├── application/
+│   │   ├── errors.ts          # AppError hierarchy (NotFound, Unauthorized, etc.)
+│   │   ├── ports.ts           # Repository interfaces (MarketRepo, TradingRepo, WalletRepo, etc.)
+│   │   └── usecases/          # One file per use case (createMarket, placeOrder, etc.)
+│   ├── infrastructure/
+│   │   ├── supabaseRepos.ts   # Supabase implementations of all ports
+│   │   ├── supabaseAuthedClient.ts  # Creates per-request authed Supabase client
+│   │   └── matchingEngine.ts  # Order book matching logic
+│   ├── auto/
+│   │   └── marketSeed.ts      # Auto-generates markets from ArcGIS data
+│   └── presentation/
+│       └── http.ts            # httpErrorResponse, requireBearerToken helpers
+└── predictions/              # CLEAN/HEXAGONAL ARCHITECTURE for crime prediction engine
+    ├── domain/
+    │   └── types.ts           # PredictionRun, Prediction, ModelMeta, RunStatus, IncidentAggregate, etc.
+    ├── application/
+    │   ├── errors.ts          # AppError hierarchy (mirrored from markets)
+    │   ├── ports.ts           # PredictionModelPort, IncidentDataPort, PredictionRepo interfaces
+    │   └── usecases/          # runPrediction, evaluatePrediction, listRuns, getRunDetail
+    ├── infrastructure/
+    │   ├── supabaseRepos.ts   # SupabasePredictionRepo — CRUD for runs + predictions
+    │   ├── incidentData.ts    # ArcGISIncidentData — wraps arcgis.ts for historical/actual queries
+    │   └── models/
+    │       ├── registry.ts    # Model registry (getModel, listModels)
+    │       └── baseline.ts    # BaselineModel — exponential-decay weighted historical average
+    └── presentation/
+        └── http.ts            # httpErrorResponse, requireBearerToken, requireCronSecret
+
+supabase/migrations/          # Postgres schema + RPC functions
+```
+
+## Architecture Patterns
+
+### Server vs Client Components
+- **Server components**: `app/*/page.tsx` files are server components that import `"use client"` UI components
+- **Client components**: All `ui.tsx` files and everything in `components/` are `"use client"`
+- The home page (`app/page.tsx`) is a `"use client"` component — `next/dynamic` with `ssr: false` requires a Client Component in Next.js 16
+
+### Clean Architecture (Markets & Predictions Domains)
+Both `lib/markets/` and `lib/predictions/` follow hexagonal architecture:
+- **Domain** (`domain/`): Pure types, no dependencies
+- **Application** (`application/`): Use cases depend only on port interfaces, not infrastructure
+- **Infrastructure** (`infrastructure/`): Supabase implementations of ports
+- **Presentation** (`presentation/`): HTTP helpers for API routes
+
+The predictions domain adds a **pluggable model system** via `PredictionModelPort` — any algorithm implements `predict()` and registers in `models/registry.ts`.
+
+API route handlers wire everything together:
+1. Extract bearer token from request
+2. Create authed Supabase client (per-request, since each user has different JWT)
+3. Instantiate repos with that client
+4. Call use case
+5. Return JSON via `Response.json()`
+
+### Supabase Client Strategy
+- **Browser singleton** (`getSupabaseClient()`): One instance for the entire browser session, persists auth state
+- **Server anon singleton** (`getAnonServerClient()`): One instance reused across all unauthenticated API route calls
+- **Per-request authed client** (`createAuthedSupabaseClient(token)`): Must be per-request since each user has a different JWT
+- Heavy logic (order matching, wallet mutations) lives in Postgres RPC functions, not in JS
+
+### Data Fetching
+- **Map incidents**: Fetched client-side in `CrimeMap` via `fetchIncidents()`, which either queries Supabase or ArcGIS depending on `NEXT_PUBLIC_SUPABASE_INCIDENTS` env var
+- **Market data**: Fetched client-side via `/api/markets/*` route handlers
+- **Prediction data**: Fetched client-side via `/api/predictions/*` route handlers; CrimeMap also auto-fetches latest completed run for the prediction overlay layer
+- All client pages use `useEffect` + `fetch()` pattern with `cache: "no-store"`
+- Multiple independent fetches are parallelized with `Promise.all`
+
+## Performance Patterns (MUST follow)
+
+### React Optimization
+- Use `useCallback` for all event handler functions that are passed as props or used in dependency arrays
+- Use `useMemo` for expensive computations (sorting, filtering large arrays)
+- Use `React.memo` for list item components that render in `.map()` loops (see `SidebarItem`)
+- Never create objects/arrays/functions inline in JSX when they're passed as props to memoized children
+
+### Bundle Optimization
+- MapLibre GL (~200KB) is lazy-loaded via `next/dynamic` with `ssr: false`
+- Heavy components should use dynamic imports when not needed at initial paint
+
+### Map Performance
+- The pulse animation (glow effect on incident points) pauses via the Page Visibility API when the tab is hidden to save GPU cycles
+- Map data refreshes are debounced via `moveend` events, and previous fetches are aborted via `AbortController`
+- Two GeoJSON sources exist: `incidents` (clustered) and `incidents-raw` (unclustered) — visibility toggled based on grouping mode
+- A third GeoJSON source `predictions` holds prediction hotspots from the latest completed run, toggled independently
+
+### API Route Performance
+- The anon Supabase client is a singleton (`getAnonServerClient()`) — never recreate it per request
+- Parallel database queries where possible (e.g., trades + bets fetched concurrently in activity route)
+
+## Coding Conventions
+
+- No comments unless absolutely necessary
+- All money values are in cents (integers), displayed as dollars with `(cents / 100).toFixed(2)`
+- Supabase RPC functions follow `*_v1` naming (e.g., `place_order_v1`, `resolve_market_v1`)
+- Error handling uses `AppError` subclasses mapped to HTTP status codes in `httpErrorResponse()`
+- UI uses custom CSS utility classes: `ui-btn`, `ui-btn-primary`, `ui-input`, `ui-select`, `ui-panel`, `ui-card`, `ui-divider`, `ui-label`, `ui-title` (defined in `globals.css`)
+- All timestamps stored/transferred as milliseconds since epoch (`*Ms` suffix)
+- Files follow the pattern: `page.tsx` (server) imports `ui.tsx` (client) which contains the actual component
+
+## Environment Variables
+
+```
+NEXT_PUBLIC_SUPABASE_URL        # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY   # Supabase anon key
+NEXT_PUBLIC_MAPTILER_KEY        # MapTiler API key
+NEXT_PUBLIC_SUPABASE_INCIDENTS  # "1" or "true" to use Supabase incidents table instead of ArcGIS
+PREDICTIONS_CRON_SECRET         # Secret for gating /api/predictions/cron and /api/predictions/evaluate endpoints
+```
+
+## Database Schema (Key Tables)
+
+- `markets` — prediction markets (id, title, status, market_type, created_by)
+- `orders` — limit orders on orderbook markets
+- `trades` — matched trades between orders
+- `positions` — user share holdings per market/outcome
+- `wallets` — user play-money balances (balance_cents bigint)
+- `ledger` — double-entry ledger for all money movements
+- `parimutuel_pools` — YES/NO pool totals for parimutuel markets
+- `parimutuel_bets` — individual bets in parimutuel markets
+- `incidents` — cached crime incident data (optional, mirrors ArcGIS)
+- `prediction_models` — registry of prediction algorithms (id text PK, name, description, is_active)
+- `prediction_runs` — each execution of a model (status, horizon_hours, window_start/end, triggered_by)
+- `predictions` — individual predictions per run (incident_type, city, predicted_count, actual_count, confidence, lat/lng)
+
+All complex mutations (placing orders, resolving markets, claiming bonuses) are implemented as Postgres RPC functions with proper transaction isolation. Prediction runs use direct table inserts/updates (no RPC).
