@@ -14,6 +14,9 @@ export function HomeOverlayNav() {
           <Link href="/markets" className="ui-btn h-9 px-3 text-[13px]">
             Markets
           </Link>
+          <Link href="/predictions" className="ui-btn h-9 px-3 text-[13px]">
+            Predictions
+          </Link>
           <AuthButton />
         </div>
       </div>

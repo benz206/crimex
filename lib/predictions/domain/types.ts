@@ -1,0 +1,90 @@
+export type RunStatus = "pending" | "running" | "completed" | "failed";
+export type TriggerType = "cron" | "manual";
+
+export type ModelMeta = {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdAtMs: number;
+};
+
+export type PredictionRun = {
+  id: string;
+  modelId: string;
+  status: RunStatus;
+  horizonHours: number;
+  windowStartMs: number;
+  windowEndMs: number;
+  triggeredBy: TriggerType;
+  createdBy: string | null;
+  startedAtMs: number | null;
+  completedAtMs: number | null;
+  errorMessage: string | null;
+  createdAtMs: number;
+};
+
+export type Prediction = {
+  id: string;
+  runId: string;
+  incidentType: string;
+  city: string | null;
+  predictedCount: number;
+  actualCount: number | null;
+  confidence: number | null;
+  lat: number | null;
+  lng: number | null;
+  evaluatedAtMs: number | null;
+  createdAtMs: number;
+};
+
+export type NewPrediction = Omit<Prediction, "id" | "actualCount" | "evaluatedAtMs" | "createdAtMs">;
+
+export type ActualUpdate = {
+  incidentType: string;
+  city: string | null;
+  actualCount: number;
+};
+
+export type RunFilters = {
+  status?: RunStatus;
+  modelId?: string;
+  startMs?: number;
+  endMs?: number;
+};
+
+export type IncidentAggregate = {
+  incidentType: string;
+  city: string | null;
+  count: number;
+  avgLat: number | null;
+  avgLng: number | null;
+};
+
+export type HistoricalQuery = {
+  hourOfDay: number;
+  dayOfWeek: number;
+  weeksBack: number;
+  incidentTypes?: string[];
+};
+
+export type ActualQuery = {
+  windowStartMs: number;
+  windowEndMs: number;
+};
+
+export type PredictInput = {
+  horizonHours: number;
+  windowStartMs: number;
+  windowEndMs: number;
+  historicalData: IncidentAggregate[];
+};
+
+export type PredictOutput = {
+  incidentType: string;
+  city: string | null;
+  predictedCount: number;
+  confidence: number | null;
+  lat: number | null;
+  lng: number | null;
+};
