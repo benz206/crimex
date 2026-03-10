@@ -62,22 +62,37 @@ lib/                          # Shared utilities and business logic
 ├── incidentTypes.ts          # Incident type filter option list
 ├── time.ts                   # Toronto timezone helpers
 ├── types.ts                  # Shared frontend types (BBox, IncidentFeature, filters, etc.)
-└── markets/                  # CLEAN/HEXAGONAL ARCHITECTURE for prediction markets
+├── markets/                  # CLEAN/HEXAGONAL ARCHITECTURE for prediction markets
+│   ├── domain/
+│   │   ├── types.ts           # Market, Order, Trade, Position, Wallet, etc.
+│   │   └── primitives.ts      # Branded types (Cents, etc.)
+│   ├── application/
+│   │   ├── errors.ts          # AppError hierarchy (NotFound, Unauthorized, etc.)
+│   │   ├── ports.ts           # Repository interfaces (MarketRepo, TradingRepo, WalletRepo, etc.)
+│   │   └── usecases/          # One file per use case (createMarket, placeOrder, etc.)
+│   ├── infrastructure/
+│   │   ├── supabaseRepos.ts   # Supabase implementations of all ports
+│   │   ├── supabaseAuthedClient.ts  # Creates per-request authed Supabase client
+│   │   └── matchingEngine.ts  # Order book matching logic
+│   ├── auto/
+│   │   └── marketSeed.ts      # Auto-generates markets from ArcGIS data
+│   └── presentation/
+│       └── http.ts            # httpErrorResponse, requireBearerToken helpers
+└── predictions/              # CLEAN/HEXAGONAL ARCHITECTURE for crime prediction engine
     ├── domain/
-    │   ├── types.ts           # Market, Order, Trade, Position, Wallet, etc.
-    │   └── primitives.ts      # Branded types (Cents, etc.)
+    │   └── types.ts           # PredictionRun, Prediction, ModelMeta, RunStatus, IncidentAggregate, etc.
     ├── application/
-    │   ├── errors.ts          # AppError hierarchy (NotFound, Unauthorized, etc.)
-    │   ├── ports.ts           # Repository interfaces (MarketRepo, TradingRepo, WalletRepo, etc.)
-    │   └── usecases/          # One file per use case (createMarket, placeOrder, etc.)
+    │   ├── errors.ts          # AppError hierarchy (mirrored from markets)
+    │   ├── ports.ts           # PredictionModelPort, IncidentDataPort, PredictionRepo interfaces
+    │   └── usecases/          # runPrediction, evaluatePrediction, listRuns, getRunDetail
     ├── infrastructure/
-    │   ├── supabaseRepos.ts   # Supabase implementations of all ports
-    │   ├── supabaseAuthedClient.ts  # Creates per-request authed Supabase client
-    │   └── matchingEngine.ts  # Order book matching logic
-    ├── auto/
-    │   └── marketSeed.ts      # Auto-generates markets from ArcGIS data
+    │   ├── supabaseRepos.ts   # SupabasePredictionRepo — CRUD for runs + predictions
+    │   ├── incidentData.ts    # ArcGISIncidentData — wraps arcgis.ts for historical/actual queries
+    │   └── models/
+    │       ├── registry.ts    # Model registry (getModel, listModels)
+    │       └── baseline.ts    # BaselineModel — exponential-decay weighted historical average
     └── presentation/
-        └── http.ts            # httpErrorResponse, requireBearerToken helpers
+        └── http.ts            # httpErrorResponse, requireBearerToken, requireCronSecret
 
 supabase/migrations/          # Postgres schema + RPC functions
 ```
@@ -87,14 +102,16 @@ supabase/migrations/          # Postgres schema + RPC functions
 ### Server vs Client Components
 - **Server components**: `app/*/page.tsx` files are server components that import `"use client"` UI components
 - **Client components**: All `ui.tsx` files and everything in `components/` are `"use client"`
-- The home page (`app/page.tsx`) lazy-loads `CrimeMap` via `next/dynamic` with `ssr: false` to avoid shipping MapLibre in the initial server bundle
+- The home page (`app/page.tsx`) is a `"use client"` component — `next/dynamic` with `ssr: false` requires a Client Component in Next.js 16
 
-### Clean Architecture (Markets Domain)
-The `lib/markets/` directory follows hexagonal architecture:
+### Clean Architecture (Markets & Predictions Domains)
+Both `lib/markets/` and `lib/predictions/` follow hexagonal architecture:
 - **Domain** (`domain/`): Pure types, no dependencies
 - **Application** (`application/`): Use cases depend only on port interfaces, not infrastructure
 - **Infrastructure** (`infrastructure/`): Supabase implementations of ports
 - **Presentation** (`presentation/`): HTTP helpers for API routes
+
+The predictions domain adds a **pluggable model system** via `PredictionModelPort` — any algorithm implements `predict()` and registers in `models/registry.ts`.
 
 API route handlers wire everything together:
 1. Extract bearer token from request
@@ -111,7 +128,8 @@ API route handlers wire everything together:
 
 ### Data Fetching
 - **Map incidents**: Fetched client-side in `CrimeMap` via `fetchIncidents()`, which either queries Supabase or ArcGIS depending on `NEXT_PUBLIC_SUPABASE_INCIDENTS` env var
-- **Market data**: Fetched client-side via `/api/*` route handlers
+- **Market data**: Fetched client-side via `/api/markets/*` route handlers
+- **Prediction data**: Fetched client-side via `/api/predictions/*` route handlers; CrimeMap also auto-fetches latest completed run for the prediction overlay layer
 - All client pages use `useEffect` + `fetch()` pattern with `cache: "no-store"`
 - Multiple independent fetches are parallelized with `Promise.all`
 
@@ -131,6 +149,7 @@ API route handlers wire everything together:
 - The pulse animation (glow effect on incident points) pauses via the Page Visibility API when the tab is hidden to save GPU cycles
 - Map data refreshes are debounced via `moveend` events, and previous fetches are aborted via `AbortController`
 - Two GeoJSON sources exist: `incidents` (clustered) and `incidents-raw` (unclustered) — visibility toggled based on grouping mode
+- A third GeoJSON source `predictions` holds prediction hotspots from the latest completed run, toggled independently
 
 ### API Route Performance
 - The anon Supabase client is a singleton (`getAnonServerClient()`) — never recreate it per request
@@ -153,6 +172,7 @@ NEXT_PUBLIC_SUPABASE_URL        # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # Supabase anon key
 NEXT_PUBLIC_MAPTILER_KEY        # MapTiler API key
 NEXT_PUBLIC_SUPABASE_INCIDENTS  # "1" or "true" to use Supabase incidents table instead of ArcGIS
+PREDICTIONS_CRON_SECRET         # Secret for gating /api/predictions/cron and /api/predictions/evaluate endpoints
 ```
 
 ## Database Schema (Key Tables)
@@ -166,5 +186,8 @@ NEXT_PUBLIC_SUPABASE_INCIDENTS  # "1" or "true" to use Supabase incidents table 
 - `parimutuel_pools` — YES/NO pool totals for parimutuel markets
 - `parimutuel_bets` — individual bets in parimutuel markets
 - `incidents` — cached crime incident data (optional, mirrors ArcGIS)
+- `prediction_models` — registry of prediction algorithms (id text PK, name, description, is_active)
+- `prediction_runs` — each execution of a model (status, horizon_hours, window_start/end, triggered_by)
+- `predictions` — individual predictions per run (incident_type, city, predicted_count, actual_count, confidence, lat/lng)
 
-All complex mutations (placing orders, resolving markets, claiming bonuses) are implemented as Postgres RPC functions with proper transaction isolation.
+All complex mutations (placing orders, resolving markets, claiming bonuses) are implemented as Postgres RPC functions with proper transaction isolation. Prediction runs use direct table inserts/updates (no RPC).

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -34,6 +34,7 @@ import type {
 import { getIncidentStyle } from "@/lib/incidentStyle";
 import { Filters } from "@/components/Filters";
 import { Sidebar } from "@/components/Sidebar";
+import { PredictionsPanel, type PredictionData } from "@/components/PredictionsPanel";
 import { HeatmapSettingsPanel } from "@/components/HeatmapSettingsPanel";
 import { IncidentPopupContent } from "@/components/IncidentPopupContent";
 import { SearchPopupContent } from "@/components/SearchPopupContent";
@@ -269,11 +270,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const filtersRef = useRef<IncidentFilters>(makeDefaultFilters());
   const [loadingCount, setLoadingCount] = useState(0);
   const [mobilePanel, setMobilePanel] = useState<
-    "filters" | "incidents" | null
+    "filters" | "incidents" | "predictions" | null
   >(null);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [predictionsEnabled, setPredictionsEnabled] = useState(false);
   const predictionsDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
+  const [predictionData, setPredictionData] = useState<PredictionData | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [rightTab, setRightTab] = useState<"incidents" | "predictions">("incidents");
   const [groupingEnabled, setGroupingEnabled] = useState(true);
   const [heatmapSettingsOpen, setHeatmapSettingsOpen] = useState(false);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(
@@ -989,46 +993,85 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     };
   }, [heatmapSettings, styleUrl]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const runsRes = await fetch("/api/predictions?status=completed", { cache: "no-store" });
-        const runsData = await runsRes.json();
-        const runs = runsData.runs ?? [];
-        if (runs.length === 0) return;
-        const latestRun = runs[0];
-        const detailRes = await fetch(`/api/predictions/${latestRun.id}`, { cache: "no-store" });
-        const detail = await detailRes.json();
-        const predictions = (detail.predictions ?? []) as Array<{
-          lat: number | null; lng: number | null;
-          incidentType: string; city: string;
-          predictedCount: number; confidence?: number;
-        }>;
-        const features = predictions
-          .filter((p) => p.lat != null && p.lng != null)
-          .map((p) => ({
-            type: "Feature" as const,
-            geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
-            properties: {
-              incidentType: p.incidentType,
-              city: p.city,
-              predictedCount: p.predictedCount,
-              confidence: p.confidence ?? 0,
-            },
-          }));
-        const fc: GeoJSON.FeatureCollection = { type: "FeatureCollection", features };
-        if (!cancelled) {
-          predictionsDataRef.current = fc;
-          const m = mapRef.current;
-          if (m && m.isStyleLoaded() && m.getSource("predictions")) {
-            (m.getSource("predictions") as maplibregl.GeoJSONSource).setData(fc);
-          }
-        }
-      } catch {}
-    })();
-    return () => { cancelled = true; };
+  const loadPredictions = useCallback(async (signal?: AbortSignal) => {
+    setPredictionLoading(true);
+    try {
+      const runsRes = await fetch("/api/predictions?status=completed", { cache: "no-store", signal });
+      const runsData = await runsRes.json();
+      const runs = runsData.runs ?? [];
+      if (runs.length === 0) { setPredictionLoading(false); return; }
+      const latestRun = runs[0];
+      const detailRes = await fetch(`/api/predictions/${latestRun.id}`, { cache: "no-store", signal });
+      const detail = await detailRes.json();
+      const predictions = (detail.predictions ?? []) as Array<{
+        id: string; runId: string;
+        lat: number | null; lng: number | null;
+        incidentType: string; city: string | null;
+        predictedCount: number; actualCount: number | null;
+        confidence: number | null; evaluatedAtMs: number | null;
+        createdAtMs: number;
+      }>;
+      const features = predictions
+        .filter((p) => p.lat != null && p.lng != null)
+        .map((p) => ({
+          type: "Feature" as const,
+          geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
+          properties: {
+            incidentType: p.incidentType,
+            city: p.city,
+            predictedCount: p.predictedCount,
+            confidence: p.confidence ?? 0,
+          },
+        }));
+      const fc: GeoJSON.FeatureCollection = { type: "FeatureCollection", features };
+      predictionsDataRef.current = fc;
+      setPredictionData({ run: latestRun, predictions });
+      const m = mapRef.current;
+      if (m && m.isStyleLoaded() && m.getSource("predictions")) {
+        (m.getSource("predictions") as maplibregl.GeoJSONSource).setData(fc);
+      }
+    } catch {
+    } finally {
+      setPredictionLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    void loadPredictions(ac.signal);
+    return () => ac.abort();
+  }, [loadPredictions]);
+
+  const flyToPrediction = useCallback(
+    (p: { lat: number | null; lng: number | null; incidentType: string; city: string | null; predictedCount: number; confidence: number | null }) => {
+      const m = mapRef.current;
+      if (!m || p.lat == null || p.lng == null) return;
+      const center: [number, number] = [p.lng, p.lat];
+      m.easeTo({ center, zoom: Math.max(m.getZoom(), 13) });
+
+      if (!predictionsEnabled) setPredictionsEnabled(true);
+
+      popupRef.current?.remove();
+      popupRef.current = popupWithReact(
+        new maplibregl.Popup({ closeButton: true, closeOnClick: true }).setLngLat(center),
+        <div style={{ minWidth: 160 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: "rgba(255,255,255,0.95)", marginBottom: 4 }}>
+            {p.incidentType}
+          </div>
+          {p.city && (
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>{p.city}</div>
+          )}
+          <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}>Predicted: <span style={{ color: "#ff6ea0" }}>{p.predictedCount}</span></span>
+            {p.confidence != null && (
+              <span style={{ color: "rgba(255,255,255,0.5)" }}>Conf: <span style={{ color: "rgba(255,255,255,0.85)" }}>{(p.confidence * 100).toFixed(0)}%</span></span>
+            )}
+          </div>
+        </div>,
+      ).addTo(m);
+    },
+    [predictionsEnabled],
+  );
 
   useEffect(() => {
     const m = mapRef.current;
@@ -1228,7 +1271,44 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       </div>
 
       <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 hidden h-[42dvh] w-auto overflow-hidden md:block md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-54px)] md:w-[400px]">
-        <Sidebar items={incidents.features} onPick={flyToIncident} />
+        <div className="flex border-b border-white/8">
+          <button
+            type="button"
+            className={
+              "flex-1 py-2.5 text-[13px] font-medium transition-colors " +
+              (rightTab === "incidents"
+                ? "text-white/95 border-b-2 border-white/80"
+                : "text-white/50 hover:text-white/70")
+            }
+            onClick={() => setRightTab("incidents")}
+          >
+            Incidents
+          </button>
+          <button
+            type="button"
+            className={
+              "flex-1 py-2.5 text-[13px] font-medium transition-colors " +
+              (rightTab === "predictions"
+                ? "text-[#ff6ea0] border-b-2 border-[#ff6ea0]"
+                : "text-white/50 hover:text-white/70")
+            }
+            onClick={() => setRightTab("predictions")}
+          >
+            Predictions
+          </button>
+        </div>
+        <div className="h-[calc(100%-42px)] overflow-hidden">
+          {rightTab === "incidents" ? (
+            <Sidebar items={incidents.features} onPick={flyToIncident} />
+          ) : (
+            <PredictionsPanel
+              data={predictionData}
+              loading={predictionLoading}
+              onPick={flyToPrediction}
+              onRefresh={() => void loadPredictions()}
+            />
+          )}
+        </div>
       </div>
 
       <div className="fixed right-3 bottom-3 z-20 flex flex-col gap-2 md:hidden">
@@ -1255,6 +1335,19 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             ? "Close Incidents"
             : `Incidents (${incidents.features.length})`}
         </button>
+        <button
+          type="button"
+          className={
+            mobilePanel === "predictions"
+              ? "ui-btn-primary"
+              : "ui-btn"
+          }
+          onClick={() =>
+            setMobilePanel((p) => (p === "predictions" ? null : "predictions"))
+          }
+        >
+          {mobilePanel === "predictions" ? "Close Predictions" : "Predictions"}
+        </button>
       </div>
 
       {mobilePanel !== null && (
@@ -1268,7 +1361,11 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           >
             <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
               <div className="text-sm font-semibold text-white/90">
-                {mobilePanel === "filters" ? "Filters" : "Incidents"}
+                {mobilePanel === "filters"
+                  ? "Filters"
+                  : mobilePanel === "predictions"
+                    ? "Predictions"
+                    : "Incidents"}
               </div>
               <button
                 type="button"
@@ -1279,22 +1376,34 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               </button>
             </div>
             <div className="ui-divider mx-4" />
-            <div className="h-[calc(100%-64px)] overflow-auto p-4">
+            <div className="h-[calc(100%-64px)] overflow-auto">
               {mobilePanel === "filters" ? (
-                <Filters
-                  styleId={currentStyleId}
-                  onStyleId={(v) => setCurrentStyleId(v)}
-                  heatmapEnabled={heatmapEnabled}
-                  onHeatmapSettingsOpen={() => {
-                    setHeatmapSettingsOpen(true);
+                <div className="p-4">
+                  <Filters
+                    styleId={currentStyleId}
+                    onStyleId={(v) => setCurrentStyleId(v)}
+                    heatmapEnabled={heatmapEnabled}
+                    onHeatmapSettingsOpen={() => {
+                      setHeatmapSettingsOpen(true);
+                      setMobilePanel(null);
+                    }}
+                    filters={filters}
+                    onFilters={setFilters}
+                    onSearchPick={(center, label) => {
+                      onSearchPick(center, label);
+                      setMobilePanel(null);
+                    }}
+                  />
+                </div>
+              ) : mobilePanel === "predictions" ? (
+                <PredictionsPanel
+                  data={predictionData}
+                  loading={predictionLoading}
+                  onPick={(p) => {
+                    flyToPrediction(p);
                     setMobilePanel(null);
                   }}
-                  filters={filters}
-                  onFilters={setFilters}
-                  onSearchPick={(center, label) => {
-                    onSearchPick(center, label);
-                    setMobilePanel(null);
-                  }}
+                  onRefresh={() => void loadPredictions()}
                 />
               ) : (
                 <div className="h-full overflow-hidden">
