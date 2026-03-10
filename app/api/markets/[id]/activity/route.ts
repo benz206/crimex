@@ -1,12 +1,5 @@
 import { httpErrorResponse } from "@/lib/markets/presentation/http";
-import { createClient } from "@supabase/supabase-js";
-
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!url || !anonKey) throw new Error("Supabase not configured");
-  return createClient(url, anonKey, { auth: { persistSession: false } });
-}
+import { getAnonServerClient } from "@/lib/supabase";
 
 export async function GET(
   req: Request,
@@ -14,24 +7,25 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const sb = createAnonClient();
-    const { data: trades, error: tradesError } = await sb
-      .from("trades")
-      .select("id,outcome,price_cents,qty,maker_user_id,taker_user_id,created_at")
-      .eq("market_id", id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (tradesError) throw tradesError;
+    const sb = getAnonServerClient();
+    const [tradesResult, betsResult] = await Promise.all([
+      sb
+        .from("trades")
+        .select("id,outcome,price_cents,qty,maker_user_id,taker_user_id,created_at")
+        .eq("market_id", id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      sb
+        .from("parimutuel_bets")
+        .select("id,outcome,amount_cents,user_id,created_at")
+        .eq("market_id", id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+    if (tradesResult.error) throw tradesResult.error;
+    if (betsResult.error) throw betsResult.error;
 
-    const { data: bets, error: betsError } = await sb
-      .from("parimutuel_bets")
-      .select("id,outcome,amount_cents,user_id,created_at")
-      .eq("market_id", id)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (betsError) throw betsError;
-
-    return Response.json({ trades: trades ?? [], bets: bets ?? [] });
+    return Response.json({ trades: tradesResult.data ?? [], bets: betsResult.data ?? [] });
   } catch (e) {
     return httpErrorResponse(e);
   }

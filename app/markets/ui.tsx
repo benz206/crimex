@@ -37,16 +37,20 @@ export function MarketsClient() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/markets", { cache: "no-store" });
-    const j = await res.json();
-    setMarkets(j.markets ?? []);
+    const marketsFetch = fetch("/api/markets", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((j) => setMarkets(j.markets ?? []));
 
     if (token) {
-      const w = await fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" });
-      const wj = await w.json();
-      if (w.ok) setWallet({ balanceCents: Number(wj.wallet.balanceCents ?? wj.wallet.balance_cents ?? 0) });
+      const walletFetch = fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" })
+        .then((res) => res.json().then((j) => ({ ok: res.ok, j })))
+        .then(({ ok, j }) => {
+          if (ok) setWallet({ balanceCents: Number(j.wallet.balanceCents ?? j.wallet.balance_cents ?? 0) });
+        });
+      await Promise.all([marketsFetch, walletFetch]);
     } else {
       setWallet(null);
+      await marketsFetch;
     }
   }, [authHeaders, token]);
 
@@ -57,7 +61,7 @@ export function MarketsClient() {
     return () => clearTimeout(t);
   }, [load]);
 
-  const create = async () => {
+  const create = useCallback(async () => {
     if (!token) return;
     setMsg(null);
     const openTimeMs = openTime.trim() ? Date.parse(openTime) : null;
@@ -86,9 +90,9 @@ export function MarketsClient() {
     setCloseTime("");
     setMarketType("orderbook");
     await load();
-  };
+  }, [token, authHeaders, title, description, category, openTime, closeTime, marketType, load]);
 
-  const fund = async () => {
+  const fund = useCallback(async () => {
     if (!token) return;
     setMsg(null);
     const amountCents = dollarsToCents(fundAmount);
@@ -107,9 +111,9 @@ export function MarketsClient() {
       return;
     }
     setWallet({ balanceCents: Number(j.wallet.balanceCents ?? 0) });
-  };
+  }, [token, authHeaders, fundAmount]);
 
-  const claimBonus = async () => {
+  const claimBonus = useCallback(async () => {
     if (!token) return;
     setMsg(null);
     const res = await fetch("/api/me/bonus", {
@@ -122,7 +126,7 @@ export function MarketsClient() {
       return;
     }
     setWallet({ balanceCents: Number(j.wallet.balanceCents ?? 0) });
-  };
+  }, [token, authHeaders]);
 
   return (
     <div className="min-h-dvh w-full bg-black">

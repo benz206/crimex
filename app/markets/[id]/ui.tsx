@@ -110,35 +110,46 @@ export function MarketClient({ marketId }: { marketId: string }) {
 
   const load = useCallback(async () => {
     setMsg(null);
-    const res = await fetch(`/api/markets/${marketId}`, {
+
+    const fetches: Promise<void>[] = [];
+
+    const marketFetch = fetch(`/api/markets/${marketId}`, {
       headers: authHeaders,
       cache: "no-store",
-    });
-    const j = await res.json();
-    if (!res.ok) {
-      setMsg(j.message ?? "Failed to load market.");
-      return;
-    }
-    setMarket(j.market);
-    setTop(j.top ?? null);
-    setPool(j.pool ?? null);
-
-    const activityRes = await fetch(`/api/markets/${marketId}/activity`, { cache: "no-store" });
-    const activityJson = await activityRes.json();
-    if (activityRes.ok) {
-      setActivity({
-        trades: activityJson.trades ?? [],
-        bets: activityJson.bets ?? [],
+    })
+      .then((res) => res.json().then((j) => ({ ok: res.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok) {
+          setMsg(j.message ?? "Failed to load market.");
+          return;
+        }
+        setMarket(j.market);
+        setTop(j.top ?? null);
+        setPool(j.pool ?? null);
       });
-    }
+    fetches.push(marketFetch);
+
+    const activityFetch = fetch(`/api/markets/${marketId}/activity`, { cache: "no-store" })
+      .then((res) => res.json().then((j) => ({ ok: res.ok, j })))
+      .then(({ ok, j }) => {
+        if (ok) {
+          setActivity({ trades: j.trades ?? [], bets: j.bets ?? [] });
+        }
+      });
+    fetches.push(activityFetch);
 
     if (token) {
-      const w = await fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" });
-      const wj = await w.json();
-      if (w.ok) setWallet(wj.wallet);
+      const walletFetch = fetch("/api/me/wallet", { headers: authHeaders, cache: "no-store" })
+        .then((res) => res.json().then((j) => ({ ok: res.ok, j })))
+        .then(({ ok, j }) => {
+          if (ok) setWallet(j.wallet);
+        });
+      fetches.push(walletFetch);
     } else {
       setWallet(null);
     }
+
+    await Promise.all(fetches);
   }, [authHeaders, marketId, token]);
 
   useEffect(() => {
@@ -148,7 +159,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
     return () => clearTimeout(t);
   }, [load]);
 
-  const submit = async () => {
+  const submit = useCallback(async () => {
     if (!token) return;
     setMsg(null);
     const clientOrderId =
@@ -177,9 +188,9 @@ export function MarketClient({ marketId }: { marketId: string }) {
     setPositions(j.positions ?? []);
     setWallet(j.wallet ?? null);
     await load();
-  };
+  }, [token, authHeaders, marketId, outcome, side, priceCents, qty, load]);
 
-  const cancelLast = async () => {
+  const cancelLast = useCallback(async () => {
     if (!token || !lastOrder?.id) return;
     setMsg(null);
     const res = await fetch(`/api/orders/${lastOrder.id}/cancel`, {
@@ -193,9 +204,9 @@ export function MarketClient({ marketId }: { marketId: string }) {
     }
     setLastOrder((o) => (o ? { ...o, status: "cancelled", remainingQty: 0 } : o));
     await load();
-  };
+  }, [token, lastOrder, authHeaders, load]);
 
-  const resolve = async (resolvedOutcome: "YES" | "NO") => {
+  const resolve = useCallback(async (resolvedOutcome: "YES" | "NO") => {
     if (!token) return;
     setMsg(null);
     const res = await fetch(`/api/markets/${marketId}/resolve`, {
@@ -209,9 +220,9 @@ export function MarketClient({ marketId }: { marketId: string }) {
       return;
     }
     await load();
-  };
+  }, [token, marketId, authHeaders, market?.marketType, load]);
 
-  const placeBet = async () => {
+  const placeBet = useCallback(async () => {
     if (!token) return;
     setMsg(null);
     const amountCents = Math.round(Number(betAmount) * 100);
@@ -231,7 +242,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
     }
     setWallet(j.wallet ?? null);
     setPool(j.pool ?? null);
-  };
+  }, [token, betAmount, marketId, authHeaders, outcome]);
 
   return (
     <div className="min-h-dvh w-full bg-black">

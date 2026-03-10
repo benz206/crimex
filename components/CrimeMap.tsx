@@ -314,6 +314,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     if (!containerRef.current) return;
     if (!styleUrl) return;
 
+    let visibilityHandler: (() => void) | null = null;
     startLoading();
     let didStop = false;
     const stopOnce = () => {
@@ -714,8 +715,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
       const periodMs = 1400;
       let lastTick = 0;
+      let pulseActive = true;
       const tick = (now: number) => {
         if (!mapRef.current || mapRef.current !== map) return;
+        if (!pulseActive) return;
         if (
           !map.isStyleLoaded() ||
           (!map.getLayer("points-glow") && !map.getLayer("points-raw-glow"))
@@ -752,6 +755,20 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
         pulseRafRef.current = requestAnimationFrame(tick);
       };
+
+      visibilityHandler = () => {
+        if (document.hidden) {
+          pulseActive = false;
+          if (pulseRafRef.current != null) {
+            cancelAnimationFrame(pulseRafRef.current);
+            pulseRafRef.current = null;
+          }
+        } else {
+          pulseActive = true;
+          pulseRafRef.current = requestAnimationFrame(tick);
+        }
+      };
+      document.addEventListener("visibilitychange", visibilityHandler);
 
       pulseRafRef.current = requestAnimationFrame(tick);
       const tryInitialRefresh = (tries: number) => {
@@ -800,6 +817,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
     return () => {
       stopOnce();
+      if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
       abortRef.current?.abort();
       abortRef.current = null;
       popupRef.current?.remove();

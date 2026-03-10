@@ -6,14 +6,7 @@ import {
   SupabaseTradingRepo,
 } from "@/lib/markets/infrastructure/supabaseRepos";
 import { httpErrorResponse } from "@/lib/markets/presentation/http";
-import { createClient } from "@supabase/supabase-js";
-
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!url || !anonKey) throw new Error("Supabase not configured");
-  return createClient(url, anonKey, { auth: { persistSession: false } });
-}
+import { getAnonServerClient } from "@/lib/supabase";
 
 export async function GET(
   req: Request,
@@ -24,7 +17,7 @@ export async function GET(
     const auth = req.headers.get("authorization");
     const sb = auth?.toLowerCase().startsWith("bearer ")
       ? createAuthedSupabaseClient(auth.slice(7))
-      : createAnonClient();
+      : getAnonServerClient();
     const marketRepo = new SupabaseMarketRepo(sb);
     const tradingRepo = new SupabaseTradingRepo(sb);
     const parimutuelRepo = new SupabaseParimutuelRepo(sb);
