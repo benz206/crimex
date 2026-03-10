@@ -2,6 +2,24 @@ import type { IncidentDataPort, PredictionModelPort, PredictionRepo } from "../p
 import { ValidationError } from "../errors";
 import type { TriggerType } from "../../domain/types";
 
+function hashString(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function diversifyCount(base: number, seed: string): number {
+  if (base <= 0) return 0;
+  const h = hashString(seed);
+  const roll = (h % 1000) / 1000;
+  const amplitude = Math.max(1, Math.round(base * 0.2));
+  const delta = Math.round((roll - 0.5) * 2 * amplitude);
+  return Math.max(0, base + delta);
+}
+
 export async function runPrediction(
   deps: {
     predictionRepo: PredictionRepo;
@@ -13,10 +31,21 @@ export async function runPrediction(
     triggeredBy: TriggerType;
     createdBy: string | null;
     excludeRoadsideTests?: boolean;
+    historicalWeeksBack?: number;
+    punishmentFactor?: number;
+    diversitySeed?: string;
   },
 ) {
   if (input.horizonHours < 1 || input.horizonHours > 24) {
     throw new ValidationError("horizonHours must be between 1 and 24");
+  }
+  if (
+    input.punishmentFactor != null &&
+    (!Number.isFinite(input.punishmentFactor) ||
+      input.punishmentFactor < 0 ||
+      input.punishmentFactor > 1)
+  ) {
+    throw new ValidationError("punishmentFactor must be between 0 and 1");
   }
 
   const now = Date.now();
@@ -43,17 +72,37 @@ export async function runPrediction(
     const historicalData = await deps.incidentData.fetchHistorical({
       hourOfDay: windowStart.getUTCHours(),
       dayOfWeek: windowStart.getUTCDay(),
-      weeksBack: 8,
+      weeksBack: input.historicalWeeksBack ?? 8,
       excludeRoadsideTests: input.excludeRoadsideTests ?? true,
     });
     console.log("[runPrediction] historical data fetched", { count: historicalData.length });
 
-    const outputs = await deps.model.predict({
+    const rawOutputs = await deps.model.predict({
       horizonHours: input.horizonHours,
       windowStartMs,
       windowEndMs,
       historicalData,
     });
+    const punishment = input.punishmentFactor ?? 0;
+    const outputs = rawOutputs
+      .map((o, index) => {
+        const confidence = o.confidence ?? 0.5;
+        const penaltyMultiplier = Math.max(0, 1 - punishment * (1 - confidence));
+        const penalizedCount = Math.round(o.predictedCount * penaltyMultiplier);
+        const diversifiedCount =
+          input.diversitySeed != null
+            ? diversifyCount(
+                penalizedCount,
+                `${input.diversitySeed}|${o.incidentType}|${o.city ?? ""}|${index}`,
+              )
+            : penalizedCount;
+        return {
+          ...o,
+          predictedCount: diversifiedCount,
+          confidence: Math.max(0, Math.min(1, confidence * (1 - punishment * 0.5))),
+        };
+      })
+      .filter((o) => o.predictedCount > 0);
     console.log("[runPrediction] model produced", { predictions: outputs.length });
 
     await deps.predictionRepo.insertPredictions(

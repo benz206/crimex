@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 
 type PredictionRun = {
   id: string;
+  shortId: string;
+  runName: string;
   modelId: string;
   status: "pending" | "running" | "completed" | "failed";
   horizonHours: number;
@@ -120,7 +122,10 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[20px] font-semibold text-white/95">Prediction Run</div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60 font-mono">{run.id}</div>
+            <div className="mt-1 text-[12px] leading-4 text-white/80">{run.runName}</div>
+            <div className="mt-1 text-[11px] leading-4 text-white/60 font-mono">
+              #{run.shortId} • {run.id}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Link className="ui-btn h-9 px-3 text-[13px]" href="/predictions">
@@ -136,6 +141,8 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
           <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-[12px]">
             <div className="text-white/60">Model</div>
             <div className="text-white/90">{run.modelId}</div>
+            <div className="text-white/60">Short ID</div>
+            <div className="text-white/90 font-mono">{run.shortId}</div>
             <div className="text-white/60">Status</div>
             <div className={STATUS_COLORS[run.status] ?? "text-white/90"}>{run.status}</div>
             <div className="text-white/60">Horizon</div>

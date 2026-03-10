@@ -282,6 +282,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const [predictionRuns, setPredictionRuns] = useState<
     Array<{
       id: string;
+      shortId: string;
+      runName: string;
       modelId: string;
       status: "pending" | "running" | "completed" | "failed";
       horizonHours: number;
@@ -745,7 +747,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           type: "circle",
           source: "predictions",
           paint: {
-            "circle-color": "#ff6ea0",
+            "circle-color": [
+              "case",
+              ["==", ["get", "success"], true],
+              "#22c55e",
+              ["==", ["get", "success"], false],
+              "#ef4444",
+              "#22c55e",
+            ],
             "circle-radius": [
               "interpolate", ["linear"], ["get", "predictedCount"],
               1, 8,
@@ -754,7 +763,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             ],
             "circle-opacity": 0.6,
             "circle-blur": 0.4,
-            "circle-stroke-color": "#ff6ea0",
+            "circle-stroke-color": [
+              "case",
+              ["==", ["get", "success"], true],
+              "#22c55e",
+              ["==", ["get", "success"], false],
+              "#ef4444",
+              "#22c55e",
+            ],
             "circle-stroke-width": 1,
             "circle-stroke-opacity": 0.8,
           },
@@ -1016,13 +1032,15 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const loadPredictions = useCallback(async (signal?: AbortSignal) => {
     setPredictionLoading(true);
     try {
-      const runsRes = await fetch("/api/predictions?status=completed", {
+      const runsRes = await fetch("/api/predictions", {
         cache: "no-store",
         signal,
       });
       const runsData = await runsRes.json();
       const runs = (runsData.runs ?? []) as Array<{
         id: string;
+        shortId: string;
+        runName: string;
         modelId: string;
         status: "pending" | "running" | "completed" | "failed";
         horizonHours: number;
@@ -1059,16 +1077,21 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       }>;
       const features = predictions
         .filter((p) => p.lat != null && p.lng != null)
-        .map((p) => ({
-          type: "Feature" as const,
-          geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
-          properties: {
-            incidentType: p.incidentType,
-            city: p.city,
-            predictedCount: p.predictedCount,
-            confidence: p.confidence ?? 0,
-          },
-        }));
+        .map((p) => {
+          const absError = p.actualCount != null ? Math.abs(p.predictedCount - p.actualCount) : null;
+          const success = absError != null ? absError <= 1 : null;
+          return {
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
+            properties: {
+              incidentType: p.incidentType,
+              city: p.city,
+              predictedCount: p.predictedCount,
+              confidence: p.confidence ?? 0,
+              success,
+            },
+          };
+        });
       const fc: GeoJSON.FeatureCollection = { type: "FeatureCollection", features };
       predictionsDataRef.current = fc;
       setPredictionData({ run: targetRun, predictions });
@@ -1122,7 +1145,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>{p.city}</div>
           )}
           <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
-            <span style={{ color: "rgba(255,255,255,0.5)" }}>Predicted: <span style={{ color: "#ff6ea0" }}>{p.predictedCount}</span></span>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}>Predicted: <span style={{ color: "#22c55e" }}>{p.predictedCount}</span></span>
             {p.confidence != null && (
               <span style={{ color: "rgba(255,255,255,0.5)" }}>Conf: <span style={{ color: "rgba(255,255,255,0.85)" }}>{(p.confidence * 100).toFixed(0)}%</span></span>
             )}
@@ -1354,7 +1377,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             className={
               "flex-1 py-2.5 text-[13px] font-medium transition-colors " +
               (rightTab === "predictions"
-                ? "text-[#ff6ea0] border-b-2 border-[#ff6ea0]"
+                ? "text-[#22c55e] border-b-2 border-[#22c55e]"
                 : "text-white/50 hover:text-white/70")
             }
             onClick={() => setRightTab("predictions")}
@@ -1600,7 +1623,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               className={
                 "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
                 (predictionsEnabled
-                  ? "bg-[#ff6ea0]/20 text-[#ff6ea0] hover:bg-[#ff6ea0]/25"
+                  ? "bg-[#22c55e]/20 text-[#22c55e] hover:bg-[#22c55e]/25"
                   : "bg-white/5 text-white/55 hover:bg-white/10")
               }
               aria-pressed={predictionsEnabled}
@@ -1613,7 +1636,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                 className={
                   "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
                   (predictionsEnabled
-                    ? "border-[#ff6ea0]/50 text-[#ff6ea0]"
+                    ? "border-[#22c55e]/50 text-[#22c55e]"
                     : "border-white/15 text-white/40")
                 }
               >

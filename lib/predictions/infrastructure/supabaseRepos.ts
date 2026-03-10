@@ -123,6 +123,8 @@ export class SupabasePredictionRepo implements PredictionRepo {
   private mapRun(r: any) {
     return {
       id: r.id,
+      shortId: r.short_id,
+      runName: r.run_name,
       modelId: r.model_id,
       status: r.status,
       horizonHours: r.horizon_hours,

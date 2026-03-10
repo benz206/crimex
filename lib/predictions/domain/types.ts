@@ -11,6 +11,8 @@ export type ModelMeta = {
 
 export type PredictionRun = {
   id: string;
+  shortId: string;
+  runName: string;
   modelId: string;
   status: RunStatus;
   horizonHours: number;
