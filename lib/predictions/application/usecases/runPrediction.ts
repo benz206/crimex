@@ -22,6 +22,8 @@ export async function runPrediction(
   const windowStartMs = now;
   const windowEndMs = now + input.horizonHours * 60 * 60 * 1000;
 
+  console.log("[runPrediction] creating run", { model: deps.model.id, horizonHours: input.horizonHours, triggeredBy: input.triggeredBy });
+
   const run = await deps.predictionRepo.createRun({
     modelId: deps.model.id,
     horizonHours: input.horizonHours,
@@ -30,16 +32,19 @@ export async function runPrediction(
     triggeredBy: input.triggeredBy,
     createdBy: input.createdBy,
   });
+  console.log("[runPrediction] run created", run.id);
 
   try {
     await deps.predictionRepo.updateRunStatus(run.id, "running");
 
     const windowStart = new Date(windowStartMs);
+    console.log("[runPrediction] fetching historical data", { hourOfDay: windowStart.getUTCHours(), dayOfWeek: windowStart.getUTCDay() });
     const historicalData = await deps.incidentData.fetchHistorical({
       hourOfDay: windowStart.getUTCHours(),
       dayOfWeek: windowStart.getUTCDay(),
       weeksBack: 8,
     });
+    console.log("[runPrediction] historical data fetched", { count: historicalData.length });
 
     const outputs = await deps.model.predict({
       horizonHours: input.horizonHours,
@@ -47,6 +52,7 @@ export async function runPrediction(
       windowEndMs,
       historicalData,
     });
+    console.log("[runPrediction] model produced", { predictions: outputs.length });
 
     await deps.predictionRepo.insertPredictions(
       run.id,
@@ -60,10 +66,13 @@ export async function runPrediction(
         lng: o.lng,
       })),
     );
+    console.log("[runPrediction] predictions inserted");
 
     await deps.predictionRepo.updateRunStatus(run.id, "completed");
+    console.log("[runPrediction] run completed", run.id);
     return await deps.predictionRepo.getRun(run.id);
   } catch (e) {
+    console.error("[runPrediction] failed", e);
     const msg = e instanceof Error ? e.message : "Unknown error";
     await deps.predictionRepo.updateRunStatus(run.id, "failed", msg);
     throw e;

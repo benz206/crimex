@@ -1,5 +1,5 @@
 ---
-description: Full project architecture, conventions, and performance patterns for crimex (Halton Crime Map + Prediction Markets)
+description: Full project architecture, conventions, and performance patterns for crimex (Halton Crime Map + Prediction Markets + Crime Prediction Engine)
 globs:
 alwaysApply: true
 ---
@@ -22,16 +22,22 @@ alwaysApply: true
 
 ```
 app/                          # Next.js App Router pages
-├── page.tsx                  # Home — full-screen CrimeMap (server component, lazy-loads CrimeMap)
+├── page.tsx                  # Home — full-screen CrimeMap (client component, lazy-loads CrimeMap)
 ├── layout.tsx                # Root layout (server component, fonts)
 ├── globals.css               # Tailwind v4 + custom CSS variables/utility classes
 ├── login/                    # Auth login flow
 ├── profile/                  # User profile
 ├── markets/                  # Prediction markets list
 │   └── [id]/                 # Single market detail
+├── predictions/              # Crime prediction runs list
+│   └── [id]/                 # Single prediction run detail
 ├── auth/callback/            # Supabase OAuth callback
 └── api/                      # Route handlers (all server-side)
     ├── markets/              # CRUD, auto-create, auto-resolve
+    ├── predictions/          # Prediction runs CRUD, cron trigger, evaluation
+    │   ├── [id]/             # Single run detail
+    │   ├── cron/             # Hourly cron endpoint (secret-gated)
+    │   └── evaluate/         # Evaluate expired prediction windows
     ├── orders/               # Place/cancel orders
     └── me/                   # Wallet, daily bonus
 

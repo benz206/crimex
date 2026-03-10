@@ -46,10 +46,11 @@ export async function POST(req: Request) {
     if (!model) throw new ValidationError(`Unknown model: ${modelId}`);
     const run = await runPrediction(
       { predictionRepo, incidentData, model },
-      { horizonHours, triggeredBy: "manual", createdBy: "me" },
+      { horizonHours, triggeredBy: "manual", createdBy: null },
     );
     return Response.json({ run }, { status: 201 });
   } catch (e) {
+    console.error("[POST /api/predictions]", e);
     return httpErrorResponse(e);
   }
 }
