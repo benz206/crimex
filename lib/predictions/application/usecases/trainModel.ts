@@ -1,10 +1,11 @@
-import type { IncidentDataPort, PredictionModelPort } from "../ports";
+import type { IncidentDataPort, PredictionModelPort, PredictionRepo } from "../ports";
 import { ValidationError } from "../errors";
 
 export async function trainModel(
   deps: {
     incidentData: IncidentDataPort;
     model: PredictionModelPort;
+    predictionRepo?: PredictionRepo;
   },
   input: {
     horizonHours: number;
@@ -16,7 +17,7 @@ export async function trainModel(
   }
 
   if (!deps.model.train) {
-    return { modelId: deps.model.id, trained: false, reason: "Model does not support training" };
+    return { modelId: deps.model.id, trained: false, calibrated: false, reason: "Model does not support training" };
   }
 
   const now = Date.now();
@@ -30,11 +31,24 @@ export async function trainModel(
     excludeRoadsideTests: input.excludeRoadsideTests ?? true,
   });
 
+  let calibrated = false;
+  if (deps.predictionRepo && deps.model.calibrate) {
+    try {
+      const calibration = await deps.predictionRepo.getModelCalibrationData(deps.model.id);
+      if (calibration.runCount >= 2) {
+        deps.model.calibrate({ calibration, historicalData });
+        calibrated = true;
+      }
+    } catch {
+      // proceed without calibration
+    }
+  }
+
   await deps.model.train({
     horizonHours: input.horizonHours,
     windowStartMs,
     windowEndMs,
     historicalData,
   });
-  return { modelId: deps.model.id, trained: true };
+  return { modelId: deps.model.id, trained: true, calibrated };
 }

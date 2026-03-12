@@ -1,7 +1,7 @@
 import { runPrediction } from "@/lib/predictions/application/usecases/runPrediction";
 import { SupabasePredictionRepo } from "@/lib/predictions/infrastructure/supabaseRepos";
 import { ArcGISIncidentData } from "@/lib/predictions/infrastructure/incidentData";
-import { listModels } from "@/lib/predictions/infrastructure/models/registry";
+import { getModel, listModelIds } from "@/lib/predictions/infrastructure/models/registry";
 import { httpErrorResponse, requireCronSecret } from "@/lib/predictions/presentation/http";
 import { getAnonServerClient } from "@/lib/supabase";
 
@@ -13,9 +13,11 @@ export async function POST(req: Request) {
     const sb = getAnonServerClient();
     const predictionRepo = new SupabasePredictionRepo(sb);
     const incidentData = new ArcGISIncidentData();
-    const models = listModels();
+    const modelIds = listModelIds();
     const results = [];
-    for (const model of models) {
+    for (const modelId of modelIds) {
+      const model = getModel(modelId);
+      if (!model) continue;
       for (const horizonHours of DEFAULT_HORIZONS) {
         const run = await runPrediction(
           { predictionRepo, incidentData, model },

@@ -34,18 +34,32 @@ export type Prediction = {
   predictedCount: number;
   actualCount: number | null;
   confidence: number | null;
+  score: number | null;
   lat: number | null;
   lng: number | null;
+  actualLat: number | null;
+  actualLng: number | null;
   evaluatedAtMs: number | null;
   createdAtMs: number;
 };
 
-export type NewPrediction = Omit<Prediction, "id" | "actualCount" | "evaluatedAtMs" | "createdAtMs">;
+export type NewPrediction = Omit<Prediction, "id" | "actualCount" | "score" | "actualLat" | "actualLng" | "evaluatedAtMs" | "createdAtMs">;
 
 export type ActualUpdate = {
   incidentType: string;
   city: string | null;
   actualCount: number;
+  score: number;
+  actualLat: number | null;
+  actualLng: number | null;
+};
+
+export type ActualIncident = {
+  incidentType: string;
+  city: string | null;
+  lat: number;
+  lng: number;
+  dateMs: number;
 };
 
 export type RunFilters = {
@@ -61,6 +75,7 @@ export type IncidentAggregate = {
   count: number;
   avgLat: number | null;
   avgLng: number | null;
+  periodMs?: number;
 };
 
 export type HistoricalQuery = {
@@ -97,5 +112,27 @@ export type TrainInput = {
   horizonHours: number;
   windowStartMs: number;
   windowEndMs: number;
+  historicalData: IncidentAggregate[];
+};
+
+export type IncidentTypeBias = {
+  incidentType: string;
+  avgBias: number;
+  avgScore: number;
+  sampleCount: number;
+};
+
+export type ModelCalibrationData = {
+  modelId: string;
+  runCount: number;
+  avgScore: number | null;
+  avgMAE: number | null;
+  avgBias: number | null;
+  recentTrend: "improving" | "stable" | "degrading" | null;
+  byIncidentType: IncidentTypeBias[];
+};
+
+export type CalibrationInput = {
+  calibration: ModelCalibrationData;
   historicalData: IncidentAggregate[];
 };
