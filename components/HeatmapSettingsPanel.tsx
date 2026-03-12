@@ -9,7 +9,6 @@ type Props = {
   settings: HeatmapSettings;
   onSettings: (next: HeatmapSettings) => void;
   onClose: () => void;
-  onReset: () => void;
 };
 
 const clamp = (n: number, min: number, max: number) =>
@@ -27,7 +26,6 @@ export function HeatmapSettingsPanel({
   settings,
   onSettings,
   onClose,
-  onReset,
 }: Props) {
   if (!open) return null;
 
@@ -64,13 +62,6 @@ export function HeatmapSettingsPanel({
               onClick={() => onEnabled(!enabled)}
             >
               {enabled ? "Enabled" : "Disabled"}
-            </button>
-            <button
-              type="button"
-              className="ui-btn h-9 px-3 text-[13px]"
-              onClick={onReset}
-            >
-              Reset
             </button>
             <button
               type="button"
@@ -241,6 +232,7 @@ export function HeatmapSettingsPanel({
           </div>
         </div>
       </div>
+
     </div>
   );
 }

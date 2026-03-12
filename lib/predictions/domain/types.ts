@@ -11,6 +11,8 @@ export type ModelMeta = {
 
 export type PredictionRun = {
   id: string;
+  shortId: string;
+  runName: string;
   modelId: string;
   status: RunStatus;
   horizonHours: number;
@@ -66,11 +68,13 @@ export type HistoricalQuery = {
   dayOfWeek: number;
   weeksBack: number;
   incidentTypes?: string[];
+  excludeRoadsideTests?: boolean;
 };
 
 export type ActualQuery = {
   windowStartMs: number;
   windowEndMs: number;
+  excludeRoadsideTests?: boolean;
 };
 
 export type PredictInput = {
@@ -87,4 +91,11 @@ export type PredictOutput = {
   confidence: number | null;
   lat: number | null;
   lng: number | null;
+};
+
+export type TrainInput = {
+  horizonHours: number;
+  windowStartMs: number;
+  windowEndMs: number;
+  historicalData: IncidentAggregate[];
 };

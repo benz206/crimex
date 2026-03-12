@@ -16,7 +16,9 @@ export async function POST(req: Request) {
     const results = [];
     for (const run of expired) {
       const predictions = await predictionRepo.getPredictions(run.id);
-      const alreadyEvaluated = predictions.some((p) => p.evaluatedAtMs != null);
+      const alreadyEvaluated =
+        predictions.length > 0 &&
+        predictions.every((p) => p.evaluatedAtMs != null && p.actualCount != null);
       if (alreadyEvaluated) continue;
       const evaluated = await evaluatePrediction(
         { predictionRepo, incidentData },

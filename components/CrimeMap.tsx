@@ -12,9 +12,11 @@ import maplibregl, {
 import {
   Car,
   CheckCircle2,
+  CircleUserRound,
   CircleHelp,
   DoorOpen,
   Home,
+  RotateCcw,
   ShieldAlert,
   ShoppingBag,
 } from "lucide-react";
@@ -277,9 +279,29 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const predictionsDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const [predictionData, setPredictionData] = useState<PredictionData | null>(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionRuns, setPredictionRuns] = useState<
+    Array<{
+      id: string;
+      shortId: string;
+      runName: string;
+      modelId: string;
+      status: "pending" | "running" | "completed" | "failed";
+      horizonHours: number;
+      windowStartMs: number;
+      windowEndMs: number;
+      triggeredBy: "cron" | "manual";
+      startedAtMs: number | null;
+      completedAtMs: number | null;
+      errorMessage: string | null;
+      createdAtMs: number;
+    }>
+  >([]);
+  const [selectedPredictionRunId, setSelectedPredictionRunId] = useState<string | null>(null);
+  const [selectedPredictionId, setSelectedPredictionId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"incidents" | "predictions">("incidents");
   const [groupingEnabled, setGroupingEnabled] = useState(true);
   const [heatmapSettingsOpen, setHeatmapSettingsOpen] = useState(false);
+  const [filterResetConfirmOpen, setFilterResetConfirmOpen] = useState(false);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(
     DEFAULT_HEATMAP_SETTINGS,
   );
@@ -725,7 +747,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           type: "circle",
           source: "predictions",
           paint: {
-            "circle-color": "#ff6ea0",
+            "circle-color": [
+              "case",
+              ["==", ["get", "success"], true],
+              "#22c55e",
+              ["==", ["get", "success"], false],
+              "#ef4444",
+              "#22c55e",
+            ],
             "circle-radius": [
               "interpolate", ["linear"], ["get", "predictedCount"],
               1, 8,
@@ -734,7 +763,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             ],
             "circle-opacity": 0.6,
             "circle-blur": 0.4,
-            "circle-stroke-color": "#ff6ea0",
+            "circle-stroke-color": [
+              "case",
+              ["==", ["get", "success"], true],
+              "#22c55e",
+              ["==", ["get", "success"], false],
+              "#ef4444",
+              "#22c55e",
+            ],
             "circle-stroke-width": 1,
             "circle-stroke-opacity": 0.8,
           },
@@ -996,12 +1032,40 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const loadPredictions = useCallback(async (signal?: AbortSignal) => {
     setPredictionLoading(true);
     try {
-      const runsRes = await fetch("/api/predictions?status=completed", { cache: "no-store", signal });
+      const runsRes = await fetch("/api/predictions", {
+        cache: "no-store",
+        signal,
+      });
       const runsData = await runsRes.json();
-      const runs = runsData.runs ?? [];
-      if (runs.length === 0) { setPredictionLoading(false); return; }
-      const latestRun = runs[0];
-      const detailRes = await fetch(`/api/predictions/${latestRun.id}`, { cache: "no-store", signal });
+      const runs = (runsData.runs ?? []) as Array<{
+        id: string;
+        shortId: string;
+        runName: string;
+        modelId: string;
+        status: "pending" | "running" | "completed" | "failed";
+        horizonHours: number;
+        windowStartMs: number;
+        windowEndMs: number;
+        triggeredBy: "cron" | "manual";
+        startedAtMs: number | null;
+        completedAtMs: number | null;
+        errorMessage: string | null;
+        createdAtMs: number;
+      }>;
+      setPredictionRuns(runs);
+      if (runs.length === 0) {
+        setPredictionData(null);
+        setSelectedPredictionRunId(null);
+        setPredictionLoading(false);
+        return;
+      }
+      const targetRunId =
+        selectedPredictionRunId && runs.some((r) => r.id === selectedPredictionRunId)
+          ? selectedPredictionRunId
+          : runs[0]!.id;
+      if (targetRunId !== selectedPredictionRunId) setSelectedPredictionRunId(targetRunId);
+      const targetRun = runs.find((r) => r.id === targetRunId) ?? runs[0]!;
+      const detailRes = await fetch(`/api/predictions/${targetRun.id}`, { cache: "no-store", signal });
       const detail = await detailRes.json();
       const predictions = (detail.predictions ?? []) as Array<{
         id: string; runId: string;
@@ -1013,19 +1077,27 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       }>;
       const features = predictions
         .filter((p) => p.lat != null && p.lng != null)
-        .map((p) => ({
-          type: "Feature" as const,
-          geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
-          properties: {
-            incidentType: p.incidentType,
-            city: p.city,
-            predictedCount: p.predictedCount,
-            confidence: p.confidence ?? 0,
-          },
-        }));
+        .map((p) => {
+          const absError = p.actualCount != null ? Math.abs(p.predictedCount - p.actualCount) : null;
+          const success = absError != null ? absError <= 1 : null;
+          return {
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
+            properties: {
+              incidentType: p.incidentType,
+              city: p.city,
+              predictedCount: p.predictedCount,
+              confidence: p.confidence ?? 0,
+              success,
+            },
+          };
+        });
       const fc: GeoJSON.FeatureCollection = { type: "FeatureCollection", features };
       predictionsDataRef.current = fc;
-      setPredictionData({ run: latestRun, predictions });
+      setPredictionData({ run: targetRun, predictions });
+      setSelectedPredictionId((prev) =>
+        prev && predictions.some((p) => p.id === prev) ? prev : null,
+      );
       const m = mapRef.current;
       if (m && m.isStyleLoaded() && m.getSource("predictions")) {
         (m.getSource("predictions") as maplibregl.GeoJSONSource).setData(fc);
@@ -1034,7 +1106,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     } finally {
       setPredictionLoading(false);
     }
-  }, []);
+  }, [selectedPredictionRunId]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -1043,13 +1115,24 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   }, [loadPredictions]);
 
   const flyToPrediction = useCallback(
-    (p: { lat: number | null; lng: number | null; incidentType: string; city: string | null; predictedCount: number; confidence: number | null }) => {
+    (p: {
+      id?: string;
+      lat: number | null;
+      lng: number | null;
+      incidentType: string;
+      city: string | null;
+      predictedCount: number;
+      confidence: number | null;
+    }) => {
       const m = mapRef.current;
       if (!m || p.lat == null || p.lng == null) return;
       const center: [number, number] = [p.lng, p.lat];
       m.easeTo({ center, zoom: Math.max(m.getZoom(), 13) });
 
       if (!predictionsEnabled) setPredictionsEnabled(true);
+      if (typeof p.id === "string") {
+        setSelectedPredictionId(p.id);
+      }
 
       popupRef.current?.remove();
       popupRef.current = popupWithReact(
@@ -1062,7 +1145,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>{p.city}</div>
           )}
           <div style={{ display: "flex", gap: 8, fontSize: 11 }}>
-            <span style={{ color: "rgba(255,255,255,0.5)" }}>Predicted: <span style={{ color: "#ff6ea0" }}>{p.predictedCount}</span></span>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}>Predicted: <span style={{ color: "#22c55e" }}>{p.predictedCount}</span></span>
             {p.confidence != null && (
               <span style={{ color: "rgba(255,255,255,0.5)" }}>Conf: <span style={{ color: "rgba(255,255,255,0.85)" }}>{(p.confidence * 100).toFixed(0)}%</span></span>
             )}
@@ -1254,9 +1337,14 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               Use fake money to bet on outcomes.
             </div>
           </div>
-          <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
-            Open
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
+              Markets
+            </Link>
+            <Link className="ui-btn h-9 px-3 text-[13px]" href="/predictions">
+              Predictions
+            </Link>
+          </div>
         </div>
         <div className="ui-divider mb-3" />
         <Filters
@@ -1289,7 +1377,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             className={
               "flex-1 py-2.5 text-[13px] font-medium transition-colors " +
               (rightTab === "predictions"
-                ? "text-[#ff6ea0] border-b-2 border-[#ff6ea0]"
+                ? "text-[#22c55e] border-b-2 border-[#22c55e]"
                 : "text-white/50 hover:text-white/70")
             }
             onClick={() => setRightTab("predictions")}
@@ -1304,8 +1392,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <PredictionsPanel
               data={predictionData}
               loading={predictionLoading}
+              runs={predictionRuns}
+              selectedRunId={selectedPredictionRunId}
+              onRunId={setSelectedPredictionRunId}
               onPick={flyToPrediction}
               onRefresh={() => void loadPredictions()}
+              selectedPredictionId={selectedPredictionId}
             />
           )}
         </div>
@@ -1399,11 +1491,15 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                 <PredictionsPanel
                   data={predictionData}
                   loading={predictionLoading}
+                  runs={predictionRuns}
+                  selectedRunId={selectedPredictionRunId}
+                  onRunId={setSelectedPredictionRunId}
                   onPick={(p) => {
                     flyToPrediction(p);
                     setMobilePanel(null);
                   }}
                   onRefresh={() => void loadPredictions()}
+                  selectedPredictionId={selectedPredictionId}
                 />
               ) : (
                 <div className="h-full overflow-hidden">
@@ -1427,9 +1523,64 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         onEnabled={setHeatmapEnabled}
         settings={heatmapSettings}
         onSettings={setHeatmapSettings}
-        onReset={() => setHeatmapSettings(DEFAULT_HEATMAP_SETTINGS)}
         onClose={() => setHeatmapSettingsOpen(false)}
       />
+
+      <div className="pointer-events-none fixed right-3 bottom-3 z-40 hidden md:block">
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            className="ui-btn inline-flex h-9 w-9 items-center justify-center p-0"
+            aria-label="Reset filters"
+            onClick={() => setFilterResetConfirmOpen(true)}
+          >
+            <RotateCcw size={14} />
+          </button>
+          <Link
+            href="/profile"
+            className="ui-btn inline-flex h-9 w-9 items-center justify-center p-0"
+            aria-label="Profile"
+          >
+            <CircleUserRound size={14} />
+          </Link>
+        </div>
+        {filterResetConfirmOpen && (
+          <div className="ui-panel absolute right-0 bottom-12 w-[280px] p-3">
+            <div className="text-[13px] font-semibold text-white/90">
+              Reset filters?
+            </div>
+            <div className="mt-1 text-[11px] leading-4 text-white/60">
+              This resets map filters to the default 1 month range.
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="ui-btn h-8 px-2.5 text-[11px]"
+                onClick={() => setFilterResetConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="ui-btn-primary h-8 px-2.5 text-[11px]"
+                onClick={() => {
+                  const endMs = Date.now();
+                  const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
+                  setFilters({
+                    startMs,
+                    endMs,
+                    timePreset: "1m",
+                    hideRoadTests: true,
+                  });
+                  setFilterResetConfirmOpen(false);
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {isLoading && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center">
@@ -1472,7 +1623,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               className={
                 "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
                 (predictionsEnabled
-                  ? "bg-[#ff6ea0]/20 text-[#ff6ea0] hover:bg-[#ff6ea0]/25"
+                  ? "bg-[#22c55e]/20 text-[#22c55e] hover:bg-[#22c55e]/25"
                   : "bg-white/5 text-white/55 hover:bg-white/10")
               }
               aria-pressed={predictionsEnabled}
@@ -1485,7 +1636,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                 className={
                   "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
                   (predictionsEnabled
-                    ? "border-[#ff6ea0]/50 text-[#ff6ea0]"
+                    ? "border-[#22c55e]/50 text-[#22c55e]"
                     : "border-white/15 text-white/40")
                 }
               >
