@@ -40,11 +40,16 @@ as $$
     join public.prediction_runs r on r.id = rl.run_id
     where rl.avg_score is not null
   ),
+  trend_counts as (
+    select greatest(count(*) / 2, 1) as half_count
+    from trend_calc
+  ),
   trend_halves as (
     select
-      avg(avg_score) filter (where rn <= greatest(count(*) over () / 2, 1)) as recent_half,
-      avg(avg_score) filter (where rn > greatest(count(*) over () / 2, 1)) as older_half
-    from trend_calc
+      avg(tc.avg_score) filter (where tc.rn <= tcnt.half_count) as recent_half,
+      avg(tc.avg_score) filter (where tc.rn > tcnt.half_count) as older_half
+    from trend_calc tc
+    cross join trend_counts tcnt
   ),
   trend_result as (
     select case
