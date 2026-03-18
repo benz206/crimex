@@ -1,10 +1,11 @@
-import type { IncidentDataPort, PredictionModelPort } from "../ports";
+import type { IncidentDataPort, PredictionModelPort, PredictionRepo } from "../ports";
 import { ValidationError } from "../errors";
 
 export async function trainModel(
   deps: {
     incidentData: IncidentDataPort;
     model: PredictionModelPort;
+    predictionRepo?: PredictionRepo;
   },
   input: {
     horizonHours: number;
@@ -16,7 +17,14 @@ export async function trainModel(
   }
 
   if (!deps.model.train) {
-    return { modelId: deps.model.id, trained: false, reason: "Model does not support training" };
+    return { modelId: deps.model.id, trained: false, calibrated: false, reason: "Model does not support training" };
+  }
+
+  const existingState = deps.predictionRepo
+    ? await deps.predictionRepo.getModelStateSnapshot(deps.model.id, input.horizonHours)
+    : null;
+  if (existingState?.state && deps.model.setState) {
+    deps.model.setState(existingState.state);
   }
 
   const now = Date.now();
@@ -30,11 +38,35 @@ export async function trainModel(
     excludeRoadsideTests: input.excludeRoadsideTests ?? true,
   });
 
+  let calibrated = false;
+  if (deps.predictionRepo && deps.model.calibrate) {
+    try {
+      const calibration = await deps.predictionRepo.getModelCalibrationData(deps.model.id);
+      if (calibration.runCount >= 2) {
+        deps.model.calibrate({ calibration, historicalData });
+        calibrated = true;
+      }
+    } catch {
+      // proceed without calibration
+    }
+  }
+
   await deps.model.train({
     horizonHours: input.horizonHours,
     windowStartMs,
     windowEndMs,
     historicalData,
   });
-  return { modelId: deps.model.id, trained: true };
+  let snapshotSaved = false;
+  if (deps.predictionRepo && deps.model.getState) {
+    await deps.predictionRepo.saveModelStateSnapshot({
+      modelId: deps.model.id,
+      horizonHours: input.horizonHours,
+      state: deps.model.getState(),
+      source: "train",
+      runId: null,
+    });
+    snapshotSaved = true;
+  }
+  return { modelId: deps.model.id, trained: true, calibrated, snapshotSaved };
 }

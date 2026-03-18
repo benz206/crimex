@@ -26,6 +26,13 @@ export function requireBearerToken(req: Request): string {
 export function requireCronSecret(req: Request): void {
   const secret = process.env.PREDICTIONS_CRON_SECRET;
   if (!secret) throw new AppError("VALIDATION", "Cron secret not configured");
-  const provided = req.headers.get("x-cron-secret") ?? "";
+  const url = new URL(req.url);
+  const authHeader = req.headers.get("authorization") ?? "";
+  const authMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided =
+    req.headers.get("x-cron-secret") ??
+    authMatch?.[1] ??
+    url.searchParams.get("cronSecret") ??
+    "";
   if (provided !== secret) throw new AppError("UNAUTHORIZED", "Invalid cron secret");
 }

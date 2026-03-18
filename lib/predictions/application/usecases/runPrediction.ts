@@ -1,6 +1,7 @@
 import type { IncidentDataPort, PredictionModelPort, PredictionRepo } from "../ports";
 import { ValidationError } from "../errors";
 import type { TriggerType } from "../../domain/types";
+import { EnsembleModel } from "../../infrastructure/models/ensemble";
 
 function hashString(value: string): number {
   let h = 2166136261;
@@ -34,6 +35,7 @@ export async function runPrediction(
     historicalWeeksBack?: number;
     punishmentFactor?: number;
     diversitySeed?: string;
+    skipCalibration?: boolean;
   },
 ) {
   if (input.horizonHours < 1 || input.horizonHours > 24) {
@@ -66,16 +68,80 @@ export async function runPrediction(
 
   try {
     await deps.predictionRepo.updateRunStatus(run.id, "running");
+    const existingState = await deps.predictionRepo.getModelStateSnapshot(
+      deps.model.id,
+      input.horizonHours,
+    );
+    if (existingState?.state && deps.model.setState) {
+      deps.model.setState(existingState.state);
+    }
 
     const windowStart = new Date(windowStartMs);
-    console.log("[runPrediction] fetching historical data", { hourOfDay: windowStart.getUTCHours(), dayOfWeek: windowStart.getUTCDay() });
+    const weeksBack = input.historicalWeeksBack ?? 8;
+    console.log("[runPrediction] fetching historical data", { hourOfDay: windowStart.getUTCHours(), dayOfWeek: windowStart.getUTCDay(), weeksBack });
     const historicalData = await deps.incidentData.fetchHistorical({
       hourOfDay: windowStart.getUTCHours(),
       dayOfWeek: windowStart.getUTCDay(),
-      weeksBack: input.historicalWeeksBack ?? 8,
+      weeksBack,
       excludeRoadsideTests: input.excludeRoadsideTests ?? true,
     });
     console.log("[runPrediction] historical data fetched", { count: historicalData.length });
+
+    if (!input.skipCalibration) {
+      try {
+        const calibration = await deps.predictionRepo.getModelCalibrationData(deps.model.id);
+        if (calibration.runCount >= 2) {
+          console.log("[runPrediction] calibrating model", {
+            modelId: deps.model.id,
+            runCount: calibration.runCount,
+            avgScore: calibration.avgScore,
+            avgBias: calibration.avgBias,
+            trend: calibration.recentTrend,
+          });
+
+          if (deps.model instanceof EnsembleModel) {
+            const subCalibrations = new Map<string, typeof calibration>();
+            const subModelIds = ["baseline-v1", "moving-average-v1", "trend-v1", "poisson-v1"];
+            const calResults = await Promise.all(
+              subModelIds.map((id) => deps.predictionRepo.getModelCalibrationData(id)),
+            );
+            for (const cal of calResults) {
+              subCalibrations.set(cal.modelId, cal);
+            }
+            deps.model.calibrateWeights(subCalibrations);
+            for (const cal of calResults) {
+              if (cal.runCount >= 2) {
+                deps.model.calibrate?.({ calibration: cal, historicalData });
+              }
+            }
+          } else {
+            deps.model.calibrate?.({ calibration, historicalData });
+          }
+        }
+      } catch (calError) {
+        console.warn("[runPrediction] calibration failed, proceeding without", calError);
+      }
+    }
+
+    if (deps.model.train) {
+      await deps.model.train({
+        horizonHours: input.horizonHours,
+        windowStartMs,
+        windowEndMs,
+        historicalData,
+      });
+      console.log("[runPrediction] model trained");
+    }
+
+    if (deps.model.getState) {
+      await deps.predictionRepo.saveModelStateSnapshot({
+        modelId: deps.model.id,
+        horizonHours: input.horizonHours,
+        state: deps.model.getState(),
+        source: input.triggeredBy,
+        runId: run.id,
+      });
+    }
 
     const rawOutputs = await deps.model.predict({
       horizonHours: input.horizonHours,

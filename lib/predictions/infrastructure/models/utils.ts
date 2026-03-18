@@ -9,8 +9,11 @@ export type GroupValue = {
 export function groupHistorical(
   historicalData: IncidentAggregate[],
 ): Map<string, GroupValue> {
+  const sorted = [...historicalData].sort(
+    (a, b) => (a.periodMs ?? 0) - (b.periodMs ?? 0),
+  );
   const groups = new Map<string, GroupValue>();
-  for (const agg of historicalData) {
+  for (const agg of sorted) {
     const key = `${agg.incidentType}||${agg.city ?? ""}`;
     let g = groups.get(key);
     if (!g) {
@@ -30,12 +33,13 @@ export function average(nums: number[]): number | null {
 }
 
 export function confidenceFromCounts(counts: number[], mean: number): number {
-  if (counts.length === 0 || mean <= 0) return 0;
+  if (counts.length <= 1 || mean <= 0) return 0;
   const variance =
-    counts.reduce((acc, n) => acc + Math.pow(n - mean, 2), 0) / counts.length;
+    counts.reduce((acc, n) => acc + Math.pow(n - mean, 2), 0) / (counts.length - 1);
   const stddev = Math.sqrt(variance);
   const cv = stddev / mean;
-  return Math.min(1, Math.max(0, 1 / (1 + cv)));
+  const samplePenalty = Math.min(1, counts.length / 6);
+  return Math.min(1, Math.max(0, (1 / (1 + cv)) * samplePenalty));
 }
 
 export function toOutput(

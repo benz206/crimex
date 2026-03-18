@@ -17,6 +17,7 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 let _anonServerClient: SupabaseClient | undefined;
+let _serviceRoleServerClient: SupabaseClient | undefined;
 
 export function getAnonServerClient(): SupabaseClient {
   if (_anonServerClient) return _anonServerClient;
@@ -27,4 +28,15 @@ export function getAnonServerClient(): SupabaseClient {
     auth: { persistSession: false },
   });
   return _anonServerClient;
+}
+
+export function getServiceRoleServerClient(): SupabaseClient {
+  if (_serviceRoleServerClient) return _serviceRoleServerClient;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (!url || !serviceRoleKey) throw new Error("Supabase service role not configured");
+  _serviceRoleServerClient = createClient(url, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+  return _serviceRoleServerClient;
 }

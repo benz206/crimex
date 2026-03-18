@@ -1072,14 +1072,13 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         lat: number | null; lng: number | null;
         incidentType: string; city: string | null;
         predictedCount: number; actualCount: number | null;
-        confidence: number | null; evaluatedAtMs: number | null;
-        createdAtMs: number;
+        confidence: number | null; score: number | null;
+        evaluatedAtMs: number | null; createdAtMs: number;
       }>;
       const features = predictions
         .filter((p) => p.lat != null && p.lng != null)
         .map((p) => {
-          const absError = p.actualCount != null ? Math.abs(p.predictedCount - p.actualCount) : null;
-          const success = absError != null ? absError <= 1 : null;
+          const success = p.score != null ? p.score >= 0.5 : null;
           return {
             type: "Feature" as const,
             geometry: { type: "Point" as const, coordinates: [p.lng!, p.lat!] },
@@ -1088,6 +1087,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               city: p.city,
               predictedCount: p.predictedCount,
               confidence: p.confidence ?? 0,
+              score: p.score,
               success,
             },
           };

@@ -29,8 +29,11 @@ type Prediction = {
   predictedCount: number;
   actualCount: number | null;
   confidence: number | null;
+  score: number | null;
   lat: number | null;
   lng: number | null;
+  actualLat: number | null;
+  actualLng: number | null;
   evaluatedAtMs: number | null;
   createdAtMs: number;
 };
@@ -48,10 +51,16 @@ function computeStats(predictions: Prediction[]) {
 
   let totalAbsError = 0;
   let hits = 0;
+  let scoreSum = 0;
+  let scored = 0;
   for (const p of evaluated) {
     const actual = p.actualCount!;
     totalAbsError += Math.abs(p.predictedCount - actual);
     if (p.predictedCount > 0 && actual > 0) hits++;
+    if (p.score != null) {
+      scoreSum += p.score;
+      scored++;
+    }
   }
 
   return {
@@ -59,6 +68,7 @@ function computeStats(predictions: Prediction[]) {
     evaluatedCount: evaluated.length,
     mae: totalAbsError / evaluated.length,
     hitRate: hits / evaluated.length,
+    avgScore: scored > 0 ? scoreSum / scored : null,
   };
 }
 
@@ -191,6 +201,14 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
                 </div>
                 <div className="text-[11px] text-white/60">Hit Rate</div>
               </div>
+              {stats.avgScore != null && (
+                <div className="ui-card text-center">
+                  <div className="text-[18px] font-semibold text-white/95">
+                    {(stats.avgScore * 100).toFixed(0)}%
+                  </div>
+                  <div className="text-[11px] text-white/60">Avg Score</div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -211,6 +229,7 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
                     <th className="pb-2 pr-4 font-medium text-right">Predicted</th>
                     <th className="pb-2 pr-4 font-medium text-right">Actual</th>
                     <th className="pb-2 pr-4 font-medium text-right">Confidence</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Score</th>
                     <th className="pb-2 font-medium text-right">Error</th>
                   </tr>
                 </thead>
@@ -233,6 +252,11 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
                         <td className="py-2 pr-4 text-right text-white/70">
                           {p.confidence != null
                             ? `${(p.confidence * 100).toFixed(0)}%`
+                            : "—"}
+                        </td>
+                        <td className={`py-2 pr-4 text-right ${p.score != null && p.score >= 0.5 ? "text-green-400" : p.score != null ? "text-red-400" : "text-white/70"}`}>
+                          {p.score != null
+                            ? `${(p.score * 100).toFixed(0)}%`
                             : "—"}
                         </td>
                         <td className="py-2 text-right text-white/70">

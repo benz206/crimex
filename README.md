@@ -32,6 +32,8 @@ NEXT_PUBLIC_MAPTILER_KEY=throw in a key here
 NEXT_PUBLIC_SUPABASE_URL=your supabase project url (optional)
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your supabase anon key (optional)
 NEXT_PUBLIC_SUPABASE_INCIDENTS=0 or 1 (optional, default 0)
+SUPABASE_SERVICE_ROLE_KEY=your supabase service role key
+PREDICTIONS_CRON_SECRET=your cron secret
 ```
 
 3. Run the dev server:
@@ -70,10 +72,41 @@ If you keep `.github/workflows/supabase-migrate.yml`, set these repo secrets:
    - `NEXT_PUBLIC_SUPABASE_URL` (optional)
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (optional)
    - `NEXT_PUBLIC_SUPABASE_INCIDENTS` (optional, set to `1` only if you created the `incidents` table)
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `PREDICTIONS_CRON_SECRET`
 
 2. Supabase Auth URL config (Auth → URL Configuration):
    - **Site URL**: your Netlify site URL (e.g. `https://your-site.netlify.app`)
    - **Redirect URLs**: add your site URL plus (optionally) your preview URLs if you want auth to work on deploy previews
+
+3. Netlify scheduled functions:
+   - `netlify/functions/predictions-cron.ts` runs hourly and tops up the current UTC day to 100 cron runs
+   - `netlify/functions/predictions-evaluate.ts` runs every hour at `:30` and consolidates expired runs
+
+## Prediction training and cloud cron
+
+- Model state is now persisted in Supabase via `prediction_model_snapshots`, keyed by `model_id` and `horizon_hours`.
+- Local and production runs share the same stored model state as long as they point at the same Supabase project.
+- `GET` or `POST` `/api/predictions/cron` will top up cloud-generated runs until the current UTC day has `100` cron runs, then consolidate expired runs.
+- `GET` or `POST` `/api/predictions/evaluate` consolidates expired runs without creating new ones.
+- Both endpoints accept cron auth through `x-cron-secret`, `Authorization: Bearer <secret>`, or `?cronSecret=...`.
+- Production scheduled jobs require `SUPABASE_SERVICE_ROLE_KEY` and `PREDICTIONS_CRON_SECRET`.
+
+### Local examples
+
+```bash
+curl "http://localhost:3000/api/predictions/cron?cronSecret=$PREDICTIONS_CRON_SECRET&dailyTarget=100"
+```
+
+```bash
+curl "http://localhost:3000/api/predictions/evaluate?cronSecret=$PREDICTIONS_CRON_SECRET"
+```
+
+### Netlify cron
+
+- Netlify scheduled functions are defined in `netlify/functions/predictions-cron.ts` and `netlify/functions/predictions-evaluate.ts`.
+- The scheduled functions call the deployed Next.js routes using `process.env.URL`.
+- If you deploy elsewhere, point any scheduler at the same endpoints and keep the same environment variables in prod.
 
 ## Data sources
 

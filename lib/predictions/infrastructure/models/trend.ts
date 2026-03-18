@@ -1,13 +1,40 @@
-import type { PredictInput, PredictOutput } from "../../domain/types";
+import type { PredictInput, PredictOutput, TrainInput, CalibrationInput, ModelState } from "../../domain/types";
 import type { PredictionModelPort } from "../../application/ports";
 import { confidenceFromCounts, groupHistorical, toOutput } from "./utils";
 
+const DEFAULT_TREND_WEIGHT = 1.0;
+const MIN_TREND_WEIGHT = 0.2;
+const MAX_TREND_WEIGHT = 2.5;
+
 export class TrendModel implements PredictionModelPort {
   readonly id = "trend-v1";
-  private trained = false;
-  private trendWeight = 1;
+  private trendWeight = DEFAULT_TREND_WEIGHT;
+  private biasCorrection = new Map<string, number>();
 
-  async train(input: PredictInput): Promise<void> {
+  calibrate(input: CalibrationInput): void {
+    const { calibration } = input;
+    if (calibration.runCount < 2) return;
+
+    if (calibration.avgBias != null) {
+      if (calibration.avgBias > 1) {
+        this.trendWeight = Math.max(MIN_TREND_WEIGHT, this.trendWeight * 0.8);
+      } else if (calibration.avgBias < -1) {
+        this.trendWeight = Math.min(MAX_TREND_WEIGHT, this.trendWeight * 1.2);
+      }
+    }
+
+    if (calibration.recentTrend === "degrading" && calibration.avgMAE != null) {
+      this.trendWeight = Math.max(MIN_TREND_WEIGHT, this.trendWeight * 0.85);
+    }
+
+    for (const t of calibration.byIncidentType) {
+      if (t.sampleCount >= 3 && Math.abs(t.avgBias) > 0.3) {
+        this.biasCorrection.set(t.incidentType, -t.avgBias * 0.4);
+      }
+    }
+  }
+
+  async train(input: TrainInput): Promise<void> {
     const groups = groupHistorical(input.historicalData);
     let totalSlope = 0;
     let count = 0;
@@ -19,12 +46,28 @@ export class TrendModel implements PredictionModelPort {
       count++;
     }
     const avgSlope = count > 0 ? totalSlope / count : 0;
-    this.trendWeight = Math.max(0.5, Math.min(2, 1 + avgSlope / 10));
-    this.trained = true;
+    this.trendWeight = Math.max(MIN_TREND_WEIGHT, Math.min(MAX_TREND_WEIGHT, 1 + avgSlope / 10));
+  }
+
+  getState(): ModelState {
+    return {
+      trendWeight: this.trendWeight,
+      biasCorrection: Object.fromEntries(this.biasCorrection),
+    };
+  }
+
+  setState(state: ModelState): void {
+    const trendWeight = typeof state.trendWeight === "number" ? state.trendWeight : DEFAULT_TREND_WEIGHT;
+    this.trendWeight = Math.max(MIN_TREND_WEIGHT, Math.min(MAX_TREND_WEIGHT, trendWeight));
+    const biasCorrection = state.biasCorrection;
+    this.biasCorrection = new Map(
+      biasCorrection && typeof biasCorrection === "object"
+        ? Object.entries(biasCorrection).filter((entry): entry is [string, number] => typeof entry[1] === "number")
+        : [],
+    );
   }
 
   async predict(input: PredictInput): Promise<PredictOutput[]> {
-    if (!this.trained) await this.train(input);
     const groups = groupHistorical(input.historicalData);
     const results: PredictOutput[] = [];
     for (const [key, g] of groups) {
@@ -33,7 +76,9 @@ export class TrendModel implements PredictionModelPort {
       const prev = g.counts.length > 1 ? g.counts[g.counts.length - 2]! : last;
       const delta = last - prev;
       const projected = Math.max(0, last + delta * this.trendWeight);
-      const predictedCount = Math.round(projected);
+      const incidentType = key.split("||")[0]!;
+      const correction = this.biasCorrection.get(incidentType) ?? 0;
+      const predictedCount = Math.max(0, Math.round(projected + correction));
       const confidence = confidenceFromCounts(g.counts.slice(-4), Math.max(1, projected));
       const out = toOutput(key, predictedCount, confidence, g);
       if (out) results.push(out);
