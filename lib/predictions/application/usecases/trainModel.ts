@@ -20,6 +20,13 @@ export async function trainModel(
     return { modelId: deps.model.id, trained: false, calibrated: false, reason: "Model does not support training" };
   }
 
+  const existingState = deps.predictionRepo
+    ? await deps.predictionRepo.getModelStateSnapshot(deps.model.id, input.horizonHours)
+    : null;
+  if (existingState?.state && deps.model.setState) {
+    deps.model.setState(existingState.state);
+  }
+
   const now = Date.now();
   const windowStartMs = now;
   const windowEndMs = now + input.horizonHours * 60 * 60 * 1000;
@@ -50,5 +57,16 @@ export async function trainModel(
     windowEndMs,
     historicalData,
   });
-  return { modelId: deps.model.id, trained: true, calibrated };
+  let snapshotSaved = false;
+  if (deps.predictionRepo && deps.model.getState) {
+    await deps.predictionRepo.saveModelStateSnapshot({
+      modelId: deps.model.id,
+      horizonHours: input.horizonHours,
+      state: deps.model.getState(),
+      source: "train",
+      runId: null,
+    });
+    snapshotSaved = true;
+  }
+  return { modelId: deps.model.id, trained: true, calibrated, snapshotSaved };
 }

@@ -115,6 +115,17 @@ export type TrainInput = {
   historicalData: IncidentAggregate[];
 };
 
+export type ModelState = Record<string, unknown>;
+
+export type ModelStateSnapshot = {
+  modelId: string;
+  horizonHours: number;
+  state: ModelState;
+  updatedAtMs: number;
+  source: string | null;
+  runId: string | null;
+};
+
 export type IncidentTypeBias = {
   incidentType: string;
   avgBias: number;

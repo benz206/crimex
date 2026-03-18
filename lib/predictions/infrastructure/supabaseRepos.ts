@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateRunInput, PredictionRepo, RunPredictionStats, IncidentTypeStats } from "../application/ports";
-import type { RunStatus, NewPrediction, ActualUpdate, ActualIncident, RunFilters, ModelCalibrationData } from "../domain/types";
+import type { RunStatus, NewPrediction, ActualUpdate, ActualIncident, RunFilters, ModelCalibrationData, ModelStateSnapshot } from "../domain/types";
 
 export class SupabasePredictionRepo implements PredictionRepo {
   constructor(private readonly sb: SupabaseClient) {}
@@ -416,6 +416,55 @@ export class SupabasePredictionRepo implements PredictionRepo {
       .delete()
       .eq("run_id", runId);
     if (error) throw error;
+  }
+
+  async getModelStateSnapshot(modelId: string, horizonHours: number): Promise<ModelStateSnapshot | null> {
+    const { data, error } = await this.sb
+      .from("prediction_model_snapshots")
+      .select("*")
+      .eq("model_id", modelId)
+      .eq("horizon_hours", horizonHours)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      modelId: data.model_id,
+      horizonHours: data.horizon_hours,
+      state: data.state ?? {},
+      source: data.source ?? null,
+      runId: data.run_id ?? null,
+      updatedAtMs: Date.parse(data.updated_at),
+    };
+  }
+
+  async saveModelStateSnapshot(input: {
+    modelId: string;
+    horizonHours: number;
+    state: Record<string, unknown>;
+    source: string | null;
+    runId: string | null;
+  }): Promise<ModelStateSnapshot> {
+    const { data, error } = await this.sb
+      .from("prediction_model_snapshots")
+      .upsert({
+        model_id: input.modelId,
+        horizon_hours: input.horizonHours,
+        state: input.state,
+        source: input.source,
+        run_id: input.runId,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "model_id,horizon_hours" })
+      .select("*")
+      .single();
+    if (error) throw error;
+    return {
+      modelId: data.model_id,
+      horizonHours: data.horizon_hours,
+      state: data.state ?? {},
+      source: data.source ?? null,
+      runId: data.run_id ?? null,
+      updatedAtMs: Date.parse(data.updated_at),
+    };
   }
 
   private mapRun(r: any) {

@@ -3,6 +3,7 @@ import type {
   PredictOutput,
   CalibrationInput,
   ModelCalibrationData,
+  ModelState,
 } from "../../domain/types";
 import type { PredictionModelPort } from "../../application/ports";
 
@@ -54,6 +55,40 @@ export class EnsembleModel implements PredictionModelPort {
   calibrate(input: CalibrationInput): void {
     for (const entry of this.entries) {
       entry.model.calibrate?.(input);
+    }
+  }
+
+  getState(): ModelState {
+    return {
+      entries: this.entries.map((entry) => ({
+        modelId: entry.model.id,
+        weight: entry.weight,
+        state: entry.model.getState?.() ?? null,
+      })),
+    };
+  }
+
+  setState(state: ModelState): void {
+    const entries = Array.isArray(state.entries) ? state.entries : [];
+    const byModelId = new Map<string, { weight?: unknown; state?: unknown }>();
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const modelId = "modelId" in entry && typeof entry.modelId === "string" ? entry.modelId : null;
+      if (!modelId) continue;
+      byModelId.set(modelId, {
+        weight: "weight" in entry ? entry.weight : undefined,
+        state: "state" in entry ? entry.state : undefined,
+      });
+    }
+    for (const entry of this.entries) {
+      const saved = byModelId.get(entry.model.id);
+      if (!saved) continue;
+      if (typeof saved.weight === "number" && Number.isFinite(saved.weight) && saved.weight > 0) {
+        entry.weight = saved.weight;
+      }
+      if (saved.state && typeof saved.state === "object") {
+        entry.model.setState?.(saved.state as ModelState);
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-import type { PredictInput, PredictOutput, CalibrationInput } from "../../domain/types";
+import type { PredictInput, PredictOutput, CalibrationInput, ModelState } from "../../domain/types";
 import type { PredictionModelPort } from "../../application/ports";
 import { confidenceFromCounts, groupHistorical, toOutput } from "./utils";
 
@@ -32,6 +32,24 @@ export class BaselineModel implements PredictionModelPort {
         this.biasCorrection.set(t.incidentType, -t.avgBias * 0.5);
       }
     }
+  }
+
+  getState(): ModelState {
+    return {
+      decayFactor: this.decayFactor,
+      biasCorrection: Object.fromEntries(this.biasCorrection),
+    };
+  }
+
+  setState(state: ModelState): void {
+    const decayFactor = typeof state.decayFactor === "number" ? state.decayFactor : DEFAULT_DECAY;
+    this.decayFactor = Math.max(MIN_DECAY, Math.min(MAX_DECAY, decayFactor));
+    const biasCorrection = state.biasCorrection;
+    this.biasCorrection = new Map(
+      biasCorrection && typeof biasCorrection === "object"
+        ? Object.entries(biasCorrection).filter((entry): entry is [string, number] => typeof entry[1] === "number")
+        : [],
+    );
   }
 
   async predict(input: PredictInput): Promise<PredictOutput[]> {

@@ -1,4 +1,4 @@
-import type { PredictInput, PredictOutput, TrainInput, CalibrationInput } from "../../domain/types";
+import type { PredictInput, PredictOutput, TrainInput, CalibrationInput, ModelState } from "../../domain/types";
 import type { PredictionModelPort } from "../../application/ports";
 import { confidenceFromCounts, groupHistorical, toOutput } from "./utils";
 
@@ -47,6 +47,24 @@ export class TrendModel implements PredictionModelPort {
     }
     const avgSlope = count > 0 ? totalSlope / count : 0;
     this.trendWeight = Math.max(MIN_TREND_WEIGHT, Math.min(MAX_TREND_WEIGHT, 1 + avgSlope / 10));
+  }
+
+  getState(): ModelState {
+    return {
+      trendWeight: this.trendWeight,
+      biasCorrection: Object.fromEntries(this.biasCorrection),
+    };
+  }
+
+  setState(state: ModelState): void {
+    const trendWeight = typeof state.trendWeight === "number" ? state.trendWeight : DEFAULT_TREND_WEIGHT;
+    this.trendWeight = Math.max(MIN_TREND_WEIGHT, Math.min(MAX_TREND_WEIGHT, trendWeight));
+    const biasCorrection = state.biasCorrection;
+    this.biasCorrection = new Map(
+      biasCorrection && typeof biasCorrection === "object"
+        ? Object.entries(biasCorrection).filter((entry): entry is [string, number] => typeof entry[1] === "number")
+        : [],
+    );
   }
 
   async predict(input: PredictInput): Promise<PredictOutput[]> {

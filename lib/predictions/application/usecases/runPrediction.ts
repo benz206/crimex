@@ -68,6 +68,13 @@ export async function runPrediction(
 
   try {
     await deps.predictionRepo.updateRunStatus(run.id, "running");
+    const existingState = await deps.predictionRepo.getModelStateSnapshot(
+      deps.model.id,
+      input.horizonHours,
+    );
+    if (existingState?.state && deps.model.setState) {
+      deps.model.setState(existingState.state);
+    }
 
     const windowStart = new Date(windowStartMs);
     const weeksBack = input.historicalWeeksBack ?? 8;
@@ -124,6 +131,16 @@ export async function runPrediction(
         historicalData,
       });
       console.log("[runPrediction] model trained");
+    }
+
+    if (deps.model.getState) {
+      await deps.predictionRepo.saveModelStateSnapshot({
+        modelId: deps.model.id,
+        horizonHours: input.horizonHours,
+        state: deps.model.getState(),
+        source: input.triggeredBy,
+        runId: run.id,
+      });
     }
 
     const rawOutputs = await deps.model.predict({

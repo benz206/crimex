@@ -70,22 +70,11 @@ export async function POST(req: Request) {
     const model = getModel(modelId);
     if (!model) throw new ValidationError(`Unknown model: ${modelId}`);
     if (action === "train") {
-      void trainModel(
+      const training = await trainModel(
         { incidentData, model, predictionRepo },
         { horizonHours, excludeRoadsideTests },
-      ).catch((err) => {
-        console.error("[POST /api/predictions train] failed", err);
-      });
-      return Response.json(
-        {
-          training: {
-            modelId,
-            accepted: true,
-            asynchronous: true,
-          },
-        },
-        { status: 202 },
       );
+      return Response.json({ training }, { status: 201 });
     }
     if (action === "check") {
       const checkMode: CheckMode =
@@ -152,38 +141,36 @@ export async function POST(req: Request) {
       }
       const startedAtMs = Date.now();
       const acceptedAt = new Date(startedAtMs).toISOString();
-      void (async () => {
-        for (let i = 0; i < batchRuns; i++) {
-          const variedHorizon = Math.max(1, Math.min(24, horizonHours + (i % 5) - 2));
-          const historicalWeeksBack = 6 + (i % 7);
-          await runPrediction(
-            { predictionRepo, incidentData, model },
-            {
-              horizonHours: variedHorizon,
-              triggeredBy: "manual",
-              createdBy: null,
-              excludeRoadsideTests,
-              historicalWeeksBack,
-              punishmentFactor,
-              diversitySeed: `${modelId}:${acceptedAt}:${i}`,
-            },
-          );
-        }
-      })().catch((err) => {
-        console.error("[POST /api/predictions batch-train] failed", err);
-      });
+      const runs = [];
+      for (let i = 0; i < batchRuns; i++) {
+        const variedHorizon = Math.max(1, Math.min(24, horizonHours + (i % 5) - 2));
+        const historicalWeeksBack = 6 + (i % 7);
+        const run = await runPrediction(
+          { predictionRepo, incidentData, model },
+          {
+            horizonHours: variedHorizon,
+            triggeredBy: "manual",
+            createdBy: null,
+            excludeRoadsideTests,
+            historicalWeeksBack,
+            punishmentFactor,
+            diversitySeed: `${modelId}:${acceptedAt}:${i}`,
+          },
+        );
+        runs.push(run);
+      }
       return Response.json(
         {
           batchTraining: {
             modelId,
-            accepted: true,
-            asynchronous: true,
             runsRequested: batchRuns,
             punishmentFactor,
             acceptedAtMs: startedAtMs,
+            completedRuns: runs.length,
           },
+          runs,
         },
-        { status: 202 },
+        { status: 201 },
       );
     }
     const run = await runPrediction(

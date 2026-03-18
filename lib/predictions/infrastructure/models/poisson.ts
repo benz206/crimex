@@ -1,4 +1,4 @@
-import type { PredictInput, PredictOutput, TrainInput, CalibrationInput } from "../../domain/types";
+import type { PredictInput, PredictOutput, TrainInput, CalibrationInput, ModelState } from "../../domain/types";
 import type { PredictionModelPort } from "../../application/ports";
 import { confidenceFromCounts, groupHistorical, toOutput } from "./utils";
 
@@ -45,6 +45,24 @@ export class PoissonModel implements PredictionModelPort {
       input.historicalData.reduce((acc, x) => acc + x.count, 0) /
       input.historicalData.length;
     this.lambdaScale = Math.max(MIN_LAMBDA_SCALE, Math.min(MAX_LAMBDA_SCALE, 1 + (mean - 2) * 0.01));
+  }
+
+  getState(): ModelState {
+    return {
+      lambdaScale: this.lambdaScale,
+      biasCorrection: Object.fromEntries(this.biasCorrection),
+    };
+  }
+
+  setState(state: ModelState): void {
+    const lambdaScale = typeof state.lambdaScale === "number" ? state.lambdaScale : DEFAULT_LAMBDA_SCALE;
+    this.lambdaScale = Math.max(MIN_LAMBDA_SCALE, Math.min(MAX_LAMBDA_SCALE, lambdaScale));
+    const biasCorrection = state.biasCorrection;
+    this.biasCorrection = new Map(
+      biasCorrection && typeof biasCorrection === "object"
+        ? Object.entries(biasCorrection).filter((entry): entry is [string, number] => typeof entry[1] === "number")
+        : [],
+    );
   }
 
   async predict(input: PredictInput): Promise<PredictOutput[]> {

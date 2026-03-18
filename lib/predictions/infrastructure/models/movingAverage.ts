@@ -1,4 +1,4 @@
-import type { PredictInput, PredictOutput, TrainInput, CalibrationInput } from "../../domain/types";
+import type { PredictInput, PredictOutput, TrainInput, CalibrationInput, ModelState } from "../../domain/types";
 import type { PredictionModelPort } from "../../application/ports";
 import { confidenceFromCounts, groupHistorical, toOutput } from "./utils";
 
@@ -45,6 +45,24 @@ export class MovingAverageModel implements PredictionModelPort {
         : Array.from(byType.values()).reduce((acc, xs) => acc + xs.length, 0) /
           byType.size;
     this.sampleCount = Math.max(MIN_WINDOW, Math.min(MAX_WINDOW, Math.round(avgLen / 2)));
+  }
+
+  getState(): ModelState {
+    return {
+      sampleCount: this.sampleCount,
+      biasCorrection: Object.fromEntries(this.biasCorrection),
+    };
+  }
+
+  setState(state: ModelState): void {
+    const sampleCount = typeof state.sampleCount === "number" ? state.sampleCount : DEFAULT_WINDOW;
+    this.sampleCount = Math.max(MIN_WINDOW, Math.min(MAX_WINDOW, Math.round(sampleCount)));
+    const biasCorrection = state.biasCorrection;
+    this.biasCorrection = new Map(
+      biasCorrection && typeof biasCorrection === "object"
+        ? Object.entries(biasCorrection).filter((entry): entry is [string, number] => typeof entry[1] === "number")
+        : [],
+    );
   }
 
   async predict(input: PredictInput): Promise<PredictOutput[]> {

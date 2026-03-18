@@ -14,6 +14,8 @@ import type {
   TrainInput,
   CalibrationInput,
   ModelCalibrationData,
+  ModelState,
+  ModelStateSnapshot,
 } from "../domain/types";
 
 export type CreateRunInput = {
@@ -30,6 +32,8 @@ export interface PredictionModelPort {
   predict(input: PredictInput): Promise<PredictOutput[]>;
   train?(input: TrainInput): Promise<void>;
   calibrate?(input: CalibrationInput): void;
+  getState?(): ModelState;
+  setState?(state: ModelState): void;
 }
 
 export interface IncidentDataPort {
@@ -68,6 +72,14 @@ export interface PredictionRepo {
   getIncidentTypeStats(): Promise<IncidentTypeStats[]>;
   getModelCalibrationData(modelId: string, limit?: number): Promise<ModelCalibrationData>;
   getCachedActuals(runId: string): Promise<ActualIncident[]>;
-  cacheActuals(runId: string, incidents: ActualIncident[]) : Promise<void>;
+  cacheActuals(runId: string, incidents: ActualIncident[]): Promise<void>;
   clearCachedActuals(runId: string): Promise<void>;
+  getModelStateSnapshot(modelId: string, horizonHours: number): Promise<ModelStateSnapshot | null>;
+  saveModelStateSnapshot(input: {
+    modelId: string;
+    horizonHours: number;
+    state: ModelState;
+    source: string | null;
+    runId: string | null;
+  }): Promise<ModelStateSnapshot>;
 }
