@@ -140,7 +140,6 @@ export async function POST(req: Request) {
         throw new ValidationError("punishmentFactor must be between 0 and 1");
       }
       const startedAtMs = Date.now();
-      const acceptedAt = new Date(startedAtMs).toISOString();
       const runs = [];
       for (let i = 0; i < batchRuns; i++) {
         const variedHorizon = Math.max(1, Math.min(24, horizonHours + (i % 5) - 2));
@@ -154,7 +153,6 @@ export async function POST(req: Request) {
             excludeRoadsideTests,
             historicalWeeksBack,
             punishmentFactor,
-            diversitySeed: `${modelId}:${acceptedAt}:${i}`,
           },
         );
         runs.push(run);

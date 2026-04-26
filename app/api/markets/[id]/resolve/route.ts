@@ -25,6 +25,10 @@ export async function POST(
     );
     return Response.json(res);
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("market_already_resolved")) {
+      return Response.json({ error: "already_resolved" }, { status: 409 });
+    }
     return httpErrorResponse(e);
   }
 }

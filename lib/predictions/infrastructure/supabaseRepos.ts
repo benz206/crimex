@@ -52,26 +52,22 @@ export class SupabasePredictionRepo implements PredictionRepo {
   }
 
   async updateActuals(runId: string, actuals: ActualUpdate[]) {
-    for (const a of actuals) {
-      const q = this.sb
-        .from("predictions")
-        .update({
-          actual_count: a.actualCount,
-          score: a.score,
-          actual_lat: a.actualLat,
-          actual_lng: a.actualLng,
-          evaluated_at: new Date().toISOString(),
-        })
-        .eq("run_id", runId)
-        .eq("incident_type", a.incidentType);
-      if (a.city) {
-        const { error } = await q.eq("city", a.city);
-        if (error) throw error;
-      } else {
-        const { error } = await q.is("city", null);
-        if (error) throw error;
-      }
-    }
+    if (actuals.length === 0) return;
+    const payload = actuals.map((a) => ({
+      incidentType: a.incidentType,
+      city: a.city ?? null,
+      actualCount: a.actualCount,
+      score: a.score,
+      brierScore: a.brierScore,
+      logLoss: a.logLoss,
+      actualLat: a.actualLat ?? null,
+      actualLng: a.actualLng ?? null,
+    }));
+    const { error } = await this.sb.rpc("bulk_update_prediction_actuals", {
+      p_run_id: runId,
+      p_actuals: payload,
+    });
+    if (error) throw error;
   }
 
   async getRun(id: string) {
@@ -117,6 +113,8 @@ export class SupabasePredictionRepo implements PredictionRepo {
       actualCount: p.actual_count,
       confidence: p.confidence,
       score: p.score ?? null,
+      brierScore: p.brier_score ?? null,
+      logLoss: p.log_loss ?? null,
       lat: p.lat,
       lng: p.lng,
       actualLat: p.actual_lat ?? null,
@@ -465,6 +463,29 @@ export class SupabasePredictionRepo implements PredictionRepo {
       runId: data.run_id ?? null,
       updatedAtMs: Date.parse(data.updated_at),
     };
+  }
+
+  async tryAcquireModelLock(modelId: string, horizonHours: number): Promise<boolean> {
+    const key = this.modelLockKey(modelId, horizonHours);
+    const { data, error } = await this.sb.rpc("try_lock_model_state", { p_key: key });
+    if (error) throw error;
+    return data === true;
+  }
+
+  async releaseModelLock(modelId: string, horizonHours: number): Promise<void> {
+    const key = this.modelLockKey(modelId, horizonHours);
+    const { error } = await this.sb.rpc("unlock_model_state", { p_key: key });
+    if (error) throw error;
+  }
+
+  private modelLockKey(modelId: string, horizonHours: number): number {
+    const raw = `${modelId}:${horizonHours}`;
+    let h = 2166136261;
+    for (let i = 0; i < raw.length; i++) {
+      h ^= raw.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h | 0;
   }
 
   private mapRun(r: any) {

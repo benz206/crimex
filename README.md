@@ -108,6 +108,34 @@ curl "http://localhost:3000/api/predictions/evaluate?cronSecret=$PREDICTIONS_CRO
 - The scheduled functions call the deployed Next.js routes using `process.env.URL`.
 - If you deploy elsewhere, point any scheduler at the same endpoints and keep the same environment variables in prod.
 
+## Daily options pipeline
+
+Four cron jobs drive the automated market lifecycle:
+
+| Job | Schedule | Endpoint |
+|-----|----------|----------|
+| `incidents-ingest` | Every 6 hours (`0 */6 * * *`) | `GET /api/incidents/ingest` |
+| `markets-auto-seed` | Daily at 00:15 UTC (`15 0 * * *`) | `GET /api/markets/auto/seed` |
+| `markets-auto-resolve` | Daily at 00:30 UTC (`30 0 * * *`) | `GET /api/markets/auto/resolve-admin` |
+| `predictions-cron` | Hourly | `GET /api/predictions/cron` |
+
+### `market_seeds` table
+
+The `market_seeds` table holds one row per planned prediction market (incident type + city + time window + threshold). A Kaggle/Colab notebook (or a future `/api/market-seeds/generate` endpoint) populates rows ahead of time by running the prediction model. The seeder cron picks up rows where `seeded_at is null and window_start > now()`, creates the market via `create_market_admin_v1`, and stamps `seeded_at + market_id`. The resolver cron picks up rows where `resolved_at is null and window_end < now() and market_id is not null`, computes `actual_count` via `get_daily_incident_counts`, and calls `resolve_parimutuel_admin_v1`.
+
+### Manual triggers (local or prod)
+
+```bash
+# Ingest the last 2 days of ArcGIS incidents into Supabase
+curl "http://localhost:3000/api/incidents/ingest?lookbackDays=2&cronSecret=$PREDICTIONS_CRON_SECRET"
+
+# Seed up to 20 pending market_seeds rows
+curl "http://localhost:3000/api/markets/auto/seed?cronSecret=$PREDICTIONS_CRON_SECRET"
+
+# Resolve markets whose window has closed
+curl "http://localhost:3000/api/markets/auto/resolve-admin?cronSecret=$PREDICTIONS_CRON_SECRET"
+```
+
 ## Data sources
 
 - **Incidents (ArcGIS FeatureServer)**: `https://services2.arcgis.com/o1LYr96CpFkfsDJS/arcgis/rest/services/Crime_Map/FeatureServer/0`

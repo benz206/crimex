@@ -16,6 +16,7 @@ import {
   BonusCooldownError,
   InsufficientFundsError,
   InvalidMarketTypeError,
+  MarketAlreadyResolvedError,
   MarketClosedError,
   NotFoundError,
   UnauthorizedError,
@@ -25,6 +26,7 @@ function mapRpcError(e: unknown): Error {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("unauthorized")) return new UnauthorizedError();
   if (msg.includes("cooldown")) return new BonusCooldownError();
+  if (msg.includes("market_already_resolved")) return new MarketAlreadyResolvedError();
   if (msg.includes("market_closed")) return new MarketClosedError();
   if (msg.includes("market_not_found")) return new NotFoundError("market not found");
   if (msg.includes("invalid_market_type")) return new InvalidMarketTypeError();

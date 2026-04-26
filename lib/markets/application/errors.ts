@@ -47,3 +47,9 @@ export class InvalidMarketTypeError extends AppError {
     super("INVALID_MARKET_TYPE", message);
   }
 }
+
+export class MarketAlreadyResolvedError extends AppError {
+  constructor(message = "Market already resolved") {
+    super("MARKET_ALREADY_RESOLVED", message);
+  }
+}

@@ -15,9 +15,11 @@ export function httpErrorResponse(e: unknown): Response {
                 ? 409
                 : e.code === "BONUS_COOLDOWN"
                   ? 409
-                  : e.code === "INVALID_MARKET_TYPE"
-                    ? 400
-                : 500;
+                  : e.code === "MARKET_ALREADY_RESOLVED"
+                    ? 409
+                    : e.code === "INVALID_MARKET_TYPE"
+                      ? 400
+                  : 500;
     return Response.json({ error: e.code, message: e.message }, { status });
   }
   const msg = e instanceof Error ? e.message : "Unknown error";

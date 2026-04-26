@@ -4,6 +4,7 @@ import { MovingAverageModel } from "./movingAverage";
 import { TrendModel } from "./trend";
 import { PoissonModel } from "./poisson";
 import { EnsembleModel } from "./ensemble";
+import { TrainedModel } from "./trained";
 
 type ModelFactory = () => PredictionModelPort;
 
@@ -22,6 +23,7 @@ const factories: [string, ModelFactory][] = [
   ["trend-v1", () => new TrendModel()],
   ["poisson-v1", () => new PoissonModel()],
   ["ensemble-v1", () => new EnsembleModel(createSubModels())],
+  ["trained-v1", () => new TrainedModel()],
 ];
 
 const factoryMap = new Map<string, ModelFactory>(factories);
