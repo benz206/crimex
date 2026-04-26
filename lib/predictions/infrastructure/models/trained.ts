@@ -42,16 +42,34 @@ function evaluateTree(node: unknown, features: number[]): number {
   }
 
   const featureIdx = n["split_feature"] as number;
-  const threshold = n["threshold"] as number;
+  const threshold = n["threshold"] as number | string;
   const decisionType = n["decision_type"] as string | undefined;
   const featureValue = features[featureIdx] ?? 0;
 
   let goLeft: boolean;
   if (decisionType === "==") {
-    goLeft = featureValue === threshold;
+    // Categorical split: LightGBM dump encodes the left-side category set as
+    // "v1||v2||..." (or a single integer as a degenerate fallback). Go left
+    // iff the feature value (rounded toward zero, since cats are int ids) is
+    // in the set. Unknown categories fall through to the right child, which
+    // matches LightGBM's default behavior at inference time.
+    let inSet: boolean;
+    if (typeof threshold === "string") {
+      const target = Math.trunc(featureValue);
+      inSet = false;
+      for (const part of threshold.split("||")) {
+        if (Number(part) === target) {
+          inSet = true;
+          break;
+        }
+      }
+    } else {
+      inSet = Math.trunc(featureValue) === Number(threshold);
+    }
+    goLeft = inSet;
   } else {
     // Default: "<="
-    goLeft = featureValue <= threshold;
+    goLeft = featureValue <= (threshold as number);
   }
 
   const child = goLeft ? n["left_child"] : n["right_child"];

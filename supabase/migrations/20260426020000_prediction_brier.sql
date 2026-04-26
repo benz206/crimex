@@ -48,10 +48,14 @@ as $$
     join public.prediction_runs r on r.id = rl.run_id
     where rl.avg_score is not null
   ),
+  trend_split as (
+    select greatest(count(*) / 2, 1) as half_point
+    from trend_calc
+  ),
   trend_halves as (
     select
-      avg(avg_score) filter (where rn <= greatest(count(*) over () / 2, 1)) as recent_half,
-      avg(avg_score) filter (where rn > greatest(count(*) over () / 2, 1)) as older_half
+      avg(avg_score) filter (where rn <= (select half_point from trend_split)) as recent_half,
+      avg(avg_score) filter (where rn > (select half_point from trend_split)) as older_half
     from trend_calc
   ),
   trend_result as (
