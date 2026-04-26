@@ -35,6 +35,8 @@ export type Prediction = {
   actualCount: number | null;
   confidence: number | null;
   score: number | null;
+  brierScore: number | null;
+  logLoss: number | null;
   lat: number | null;
   lng: number | null;
   actualLat: number | null;
@@ -43,13 +45,15 @@ export type Prediction = {
   createdAtMs: number;
 };
 
-export type NewPrediction = Omit<Prediction, "id" | "actualCount" | "score" | "actualLat" | "actualLng" | "evaluatedAtMs" | "createdAtMs">;
+export type NewPrediction = Omit<Prediction, "id" | "actualCount" | "score" | "brierScore" | "logLoss" | "actualLat" | "actualLng" | "evaluatedAtMs" | "createdAtMs">;
 
 export type ActualUpdate = {
   incidentType: string;
   city: string | null;
   actualCount: number;
   score: number;
+  brierScore: number;
+  logLoss: number;
   actualLat: number | null;
   actualLng: number | null;
 };

@@ -6,6 +6,43 @@ import type {
   ActualQuery,
 } from "../domain/types";
 import { fetchIncidentsGeoJSON } from "@/lib/arcgis";
+import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
+
+export async function fetchDailyAggregates(opts: {
+  startDate: string;
+  endDate: string;
+  city?: string;
+  incidentType?: string;
+}): Promise<Array<{ day: string; city: string; incidentType: string; count: number }>> {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const { data, error } = await supabaseAdmin.rpc("get_daily_incident_counts", {
+      p_start_date: opts.startDate,
+      p_end_date: opts.endDate,
+      p_city: opts.city ?? null,
+      p_type: opts.incidentType ?? null,
+    });
+    if (error) {
+      console.error("[fetchDailyAggregates] RPC error", error);
+      return [];
+    }
+    const rows = (data ?? []) as Array<{
+      day: string;
+      city: string;
+      incident_type: string;
+      count: number;
+    }>;
+    return rows.map((r) => ({
+      day: r.day,
+      city: r.city,
+      incidentType: r.incident_type,
+      count: r.count,
+    }));
+  } catch (err) {
+    console.error("[fetchDailyAggregates] unexpected error", err);
+    return [];
+  }
+}
 
 const isRoadsideTest = (desc?: string) => {
   const d = (desc ?? "").trim().toUpperCase();

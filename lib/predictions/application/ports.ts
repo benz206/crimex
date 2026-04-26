@@ -82,4 +82,6 @@ export interface PredictionRepo {
     source: string | null;
     runId: string | null;
   }): Promise<ModelStateSnapshot>;
+  tryAcquireModelLock(modelId: string, horizonHours: number): Promise<boolean>;
+  releaseModelLock(modelId: string, horizonHours: number): Promise<void>;
 }

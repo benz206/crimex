@@ -35,26 +35,41 @@ function centroid(
   return { lat: latSum / incidents.length, lng: lngSum / incidents.length };
 }
 
-function computeScore(
+function poissonCdf(k: number, lambda: number): number {
+  if (lambda <= 0) return k < 0 ? 0 : 1;
+  let sum = 0;
+  let term = Math.exp(-lambda);
+  for (let i = 0; i <= k; i++) {
+    sum += term;
+    term *= lambda / (i + 1);
+  }
+  return Math.min(sum, 1);
+}
+
+function computeMetrics(
   predictedCount: number,
   actualCount: number,
   avgDistKm: number | null,
   hasSpatial: boolean,
-): number {
-  const maxDenom = Math.max(predictedCount, actualCount, 1);
-  const countScore = Math.max(
-    0,
-    1 - Math.abs(predictedCount - actualCount) / maxDenom,
+): { score: number; brierScore: number; logLoss: number; spatialScore: number | null } {
+  const threshold = Math.round(predictedCount);
+  const p = 1 - poissonCdf(threshold - 1, predictedCount);
+  const actualBinary = actualCount >= threshold ? 1 : 0;
+  const brier = (p - actualBinary) ** 2;
+  const logLoss = -(
+    actualBinary * Math.log(Math.max(p, 1e-9)) +
+    (1 - actualBinary) * Math.log(Math.max(1 - p, 1e-9))
   );
 
-  if (!hasSpatial || avgDistKm == null) return countScore;
+  let spatialScore: number | null = null;
+  if (hasSpatial && avgDistKm != null) {
+    spatialScore =
+      avgDistKm <= NEAR_RADIUS_KM
+        ? 1.0
+        : Math.max(0, 1 - (avgDistKm - NEAR_RADIUS_KM) / (MATCH_RADIUS_KM - NEAR_RADIUS_KM));
+  }
 
-  const spatialScore =
-    avgDistKm <= NEAR_RADIUS_KM
-      ? 1.0
-      : Math.max(0, 1 - (avgDistKm - NEAR_RADIUS_KM) / (MATCH_RADIUS_KM - NEAR_RADIUS_KM));
-
-  return countScore * 0.6 + spatialScore * 0.4;
+  return { score: 1 - brier, brierScore: brier, logLoss, spatialScore };
 }
 
 export async function evaluatePrediction(
@@ -116,6 +131,8 @@ export async function evaluatePrediction(
       city: string | null;
       actualCount: number;
       score: number;
+      brierScore: number;
+      logLoss: number;
       actualLat: number | null;
       actualLng: number | null;
     }
@@ -145,11 +162,14 @@ export async function evaluatePrediction(
       }
       const avgDist = nearby.length > 0 ? distSum / nearby.length : null;
       const c = centroid(nearby);
+      const metrics = computeMetrics(p.predictedCount, nearby.length, avgDist, true);
       updatesByKey.set(key, {
         incidentType: p.incidentType,
         city: p.city,
         actualCount: nearby.length,
-        score: computeScore(p.predictedCount, nearby.length, avgDist, true),
+        score: metrics.score,
+        brierScore: metrics.brierScore,
+        logLoss: metrics.logLoss,
         actualLat: c?.lat ?? null,
         actualLng: c?.lng ?? null,
       });
@@ -160,11 +180,14 @@ export async function evaluatePrediction(
           )
         : typeActuals;
       const c = centroid(cityActuals);
+      const metrics = computeMetrics(p.predictedCount, cityActuals.length, null, false);
       updatesByKey.set(key, {
         incidentType: p.incidentType,
         city: p.city,
         actualCount: cityActuals.length,
-        score: computeScore(p.predictedCount, cityActuals.length, null, false),
+        score: metrics.score,
+        brierScore: metrics.brierScore,
+        logLoss: metrics.logLoss,
         actualLat: c?.lat ?? null,
         actualLng: c?.lng ?? null,
       });
