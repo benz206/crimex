@@ -100,14 +100,23 @@ export async function runPrediction(
     await deps.predictionRepo.updateRunStatus(run.id, "running");
     log.phase("status → running");
 
-    log.phase("acquiring model lock");
-    const lockAcquired = await deps.predictionRepo.tryAcquireModelLock(
-      deps.model.id,
-      input.horizonHours,
-    );
-    log.info(`lock acquired: ${lockAcquired}`);
-    if (!lockAcquired) {
-      log.warn("could not acquire model lock — skipping train/save");
+    const isStateful =
+      typeof deps.model.setState === "function" ||
+      typeof deps.model.getState === "function";
+
+    let lockAcquired = false;
+    if (isStateful) {
+      log.phase("acquiring model lock");
+      lockAcquired = await deps.predictionRepo.tryAcquireModelLock(
+        deps.model.id,
+        input.horizonHours,
+      );
+      log.info(`lock acquired: ${lockAcquired}`);
+      if (!lockAcquired) {
+        log.warn("could not acquire model lock — skipping train/save");
+      }
+    } else {
+      log.info("model is stateless (remote inference) — skipping lock/snapshot");
     }
 
     const windowStart = new Date(windowStartMs);
@@ -125,65 +134,67 @@ export async function runPrediction(
     });
     log.info(`historical rows fetched: ${historicalData.length}`);
 
-    try {
-      log.phase("loading snapshot");
-      const existingState = await deps.predictionRepo.getModelStateSnapshot(
-        deps.model.id,
-        input.horizonHours,
-      );
-      if (existingState?.state && deps.model.setState) {
-        deps.model.setState(existingState.state);
-        log.info(`snapshot loaded (updated ${new Date(existingState.updatedAtMs).toISOString()})`);
-      } else {
-        log.warn(`no snapshot found for ${deps.model.id} h=${input.horizonHours} — predict will return []`);
-      }
-
-      if (!input.skipCalibration) {
-        try {
-          log.phase("fetching calibration data");
-          const calibration = await deps.predictionRepo.getModelCalibrationData(deps.model.id);
-          if (calibration.runCount >= 2) {
-            log.info("applying calibration", {
-              runCount: calibration.runCount,
-              avgScore: calibration.avgScore,
-              avgBias: calibration.avgBias,
-              trend: calibration.recentTrend,
-            });
-            deps.model.calibrate?.({ calibration, historicalData });
-          } else {
-            log.info(`calibration skipped (only ${calibration.runCount} prior run(s))`);
-          }
-        } catch (calError) {
-          log.warn("calibration failed, proceeding without", calError);
+    if (isStateful) {
+      try {
+        log.phase("loading snapshot");
+        const existingState = await deps.predictionRepo.getModelStateSnapshot(
+          deps.model.id,
+          input.horizonHours,
+        );
+        if (existingState?.state && deps.model.setState) {
+          deps.model.setState(existingState.state);
+          log.info(`snapshot loaded (updated ${new Date(existingState.updatedAtMs).toISOString()})`);
+        } else {
+          log.warn(`no snapshot found for ${deps.model.id} h=${input.horizonHours} — predict will return []`);
         }
-      }
 
-      if (lockAcquired && deps.model.train) {
-        log.phase("training model");
-        await deps.model.train({
-          horizonHours: input.horizonHours,
-          windowStartMs,
-          windowEndMs,
-          historicalData,
-        });
-        log.info("training done (no-op for trained-v1)");
-      }
+        if (!input.skipCalibration) {
+          try {
+            log.phase("fetching calibration data");
+            const calibration = await deps.predictionRepo.getModelCalibrationData(deps.model.id);
+            if (calibration.runCount >= 2) {
+              log.info("applying calibration", {
+                runCount: calibration.runCount,
+                avgScore: calibration.avgScore,
+                avgBias: calibration.avgBias,
+                trend: calibration.recentTrend,
+              });
+              deps.model.calibrate?.({ calibration, historicalData });
+            } else {
+              log.info(`calibration skipped (only ${calibration.runCount} prior run(s))`);
+            }
+          } catch (calError) {
+            log.warn("calibration failed, proceeding without", calError);
+          }
+        }
 
-      if (lockAcquired && deps.model.getState) {
-        log.phase("saving model snapshot");
-        await deps.predictionRepo.saveModelStateSnapshot({
-          modelId: deps.model.id,
-          horizonHours: input.horizonHours,
-          state: deps.model.getState(),
-          source: input.triggeredBy,
-          runId: run.id,
-        });
-        log.info("snapshot saved");
-      }
-    } finally {
-      if (lockAcquired) {
-        await deps.predictionRepo.releaseModelLock(deps.model.id, input.horizonHours);
-        log.info("lock released");
+        if (lockAcquired && deps.model.train) {
+          log.phase("training model");
+          await deps.model.train({
+            horizonHours: input.horizonHours,
+            windowStartMs,
+            windowEndMs,
+            historicalData,
+          });
+          log.info("training done (no-op for trained-v1)");
+        }
+
+        if (lockAcquired && deps.model.getState) {
+          log.phase("saving model snapshot");
+          await deps.predictionRepo.saveModelStateSnapshot({
+            modelId: deps.model.id,
+            horizonHours: input.horizonHours,
+            state: deps.model.getState(),
+            source: input.triggeredBy,
+            runId: run.id,
+          });
+          log.info("snapshot saved");
+        }
+      } finally {
+        if (lockAcquired) {
+          await deps.predictionRepo.releaseModelLock(deps.model.id, input.horizonHours);
+          log.info("lock released");
+        }
       }
     }
 

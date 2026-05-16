@@ -290,6 +290,8 @@ export function PredictionsClient() {
   const [runLimit, setRunLimit] = useState(100);
   const [stats, setStats] = useState<ConsolidatedStats | null>(null);
   const [showStats, setShowStats] = useState(true);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const load = useCallback(async () => {
     const url = new URL("/api/predictions", window.location.origin);
@@ -312,6 +314,39 @@ export function PredictionsClient() {
     }, 0);
     return () => clearTimeout(t);
   }, [load]);
+
+  const resetAll = useCallback(async () => {
+    if (!token) return;
+    setResetting(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/predictions/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const j = (await res.json()) as {
+        ok?: boolean;
+        deletedRuns?: number;
+        deletedPredictions?: number;
+        deletedCheckJobs?: number;
+        deletedActualCache?: number;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        setMsg(j.error ?? j.message ?? "Reset failed.");
+        return;
+      }
+      setMsg(
+        `Reset complete — deleted ${j.deletedRuns ?? 0} runs, ${j.deletedPredictions ?? 0} predictions, ${j.deletedCheckJobs ?? 0} check jobs, ${j.deletedActualCache ?? 0} cached actuals.`,
+      );
+      setResetConfirm(false);
+      await load();
+    } finally {
+      setResetting(false);
+    }
+  }, [token, authHeaders, load]);
 
   const triggerRun = useCallback(async () => {
     if (!token) return;
@@ -851,6 +886,50 @@ export function PredictionsClient() {
               Display capped to latest {runLimit} runs. Increase cap in Filters to inspect more.
             </div>
           )}
+        </div>
+
+        <div className="ui-panel mt-3 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[13px] font-semibold text-(--danger)">
+                Danger zone
+              </div>
+              <div className="mt-1 text-[11px] leading-4 text-white/55">
+                Delete every prediction run, prediction, check job, and cached actual.
+                This cannot be undone. Requires admin access.
+              </div>
+            </div>
+            {!resetConfirm ? (
+              <button
+                type="button"
+                className="ui-btn shrink-0 text-(--danger)"
+                onClick={() => setResetConfirm(true)}
+                disabled={!token || resetting}
+              >
+                Reset all predictions
+              </button>
+            ) : (
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  className="ui-btn"
+                  onClick={() => setResetConfirm(false)}
+                  disabled={resetting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="ui-btn-primary"
+                  style={{ background: "var(--danger)" }}
+                  onClick={() => void resetAll()}
+                  disabled={!token || resetting}
+                >
+                  {resetting ? "Resetting…" : "Confirm reset"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
