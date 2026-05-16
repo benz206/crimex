@@ -1,0 +1,46 @@
+name: Promote dev to main
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: Squash commit title
+        required: true
+        default: Promote dev
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Squash-merge dev into main and reset dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin dev
+
+          if git diff --quiet origin/main origin/dev; then
+            echo "No changes between dev and main, nothing to promote."
+            exit 0
+          fi
+
+          pr_url=$(gh pr create --base main --head dev \
+            --title "${{ inputs.title }}" \
+            --body "Automated promotion of dev to main.")
+          pr_number=$(basename "$pr_url")
+
+          gh pr merge "$pr_number" --squash --delete-branch=false
+
+          git fetch origin main
+          git push --force-with-lease origin origin/main:refs/heads/dev
