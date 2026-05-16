@@ -11,8 +11,8 @@ const handler = async () => {
   }
 
   const res = await fetch(
-    `${baseUrl}/api/predictions/cron?cronSecret=${encodeURIComponent(secret)}&dailyTarget=100`,
-    { method: "GET" },
+    `${baseUrl}/api/predictions/cron?dailyTarget=100`,
+    { method: "GET", headers: { Authorization: `Bearer ${secret}` } },
   );
 
   if (!res.ok) {

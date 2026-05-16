@@ -4,6 +4,7 @@ import { useAccessToken } from "@/lib/useAccessToken";
 import { getSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NavBar } from "@/components/NavBar";
 
 type PredictionRun = {
   id: string;
@@ -25,6 +26,9 @@ type PredictionRun = {
 type PredictionModelOption = {
   id: string;
   trainable: boolean;
+  hasSnapshot: boolean;
+  snapshotHorizons: number[];
+  snapshotUpdatedAtMs: number | null;
 };
 
 type ConsolidationResponse = {
@@ -105,31 +109,40 @@ type ConsolidatedStats = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "text-yellow-400",
-  running: "text-blue-400",
-  completed: "text-green-400",
-  failed: "text-red-400",
+  pending: "text-[color:var(--warning)]",
+  running: "text-[color:var(--info)]",
+  completed: "text-[color:var(--success)]",
+  failed: "text-[color:var(--danger)]",
 };
 
 function scoreColor(score: number | null): string {
   if (score == null) return "bg-white/10";
-  if (score >= 0.8) return "bg-emerald-500";
-  if (score >= 0.6) return "bg-green-500";
-  if (score >= 0.4) return "bg-yellow-500";
-  return "bg-red-500";
+  if (score >= 0.8) return "bg-[color:var(--success)]";
+  if (score >= 0.6) return "bg-[color:var(--success)]";
+  if (score >= 0.4) return "bg-[color:var(--warning)]";
+  return "bg-[color:var(--danger)]";
 }
 
 function scoreTextColor(score: number | null): string {
   if (score == null) return "text-white/40";
-  if (score >= 0.8) return "text-emerald-400";
-  if (score >= 0.6) return "text-green-400";
-  if (score >= 0.4) return "text-yellow-400";
-  return "text-red-400";
+  if (score >= 0.8) return "text-[color:var(--success)]";
+  if (score >= 0.6) return "text-[color:var(--success)]";
+  if (score >= 0.4) return "text-[color:var(--warning)]";
+  return "text-[color:var(--danger)]";
 }
 
 function pct(v: number | null): string {
   if (v == null) return "—";
   return `${(v * 100).toFixed(0)}%`;
+}
+
+function relativeTime(ms: number | null): string {
+  if (ms == null) return "never";
+  const diffSec = Math.max(0, (Date.now() - ms) / 1000);
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -253,12 +266,8 @@ export function PredictionsClient() {
   const [runs, setRuns] = useState<PredictionRun[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [horizonHours, setHorizonHours] = useState(4);
-  const [modelId, setModelId] = useState("baseline-v1");
+  const modelId = "trained-v1";
   const [excludeRoadsideTests, setExcludeRoadsideTests] = useState(true);
-  const [batchRuns, setBatchRuns] = useState(100);
-  const [punishmentFactor, setPunishmentFactor] = useState(0.2);
-  const [training, setTraining] = useState(false);
-  const [batchTraining, setBatchTraining] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkProgress, setCheckProgress] = useState<{
     label: string;
@@ -274,7 +283,7 @@ export function PredictionsClient() {
   const finalizedCheckJobIdRef = useRef<string | null>(null);
   const [checkMode, setCheckMode] = useState<CheckMode>("new_only");
   const [models, setModels] = useState<PredictionModelOption[]>([
-    { id: "baseline-v1", trainable: false },
+    { id: "baseline-v1", trainable: true, hasSnapshot: false, snapshotHorizons: [], snapshotUpdatedAtMs: null },
   ]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -291,7 +300,9 @@ export function PredictionsClient() {
     const res = await fetch(url.toString(), { cache: "no-store" });
     const j = await res.json();
     setRuns(j.runs ?? []);
-    if (Array.isArray(j.models) && j.models.length > 0) setModels(j.models);
+    if (Array.isArray(j.models) && j.models.length > 0) {
+      setModels(j.models);
+    }
     if (j.stats) setStats(j.stats);
   }, [statusFilter, runLimit]);
 
@@ -322,72 +333,6 @@ export function PredictionsClient() {
       setLoading(false);
     }
   }, [token, authHeaders, modelId, horizonHours, excludeRoadsideTests, load]);
-
-  const triggerBatchTraining = useCallback(async () => {
-    if (!token) return;
-    setBatchTraining(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/predictions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
-        body: JSON.stringify({
-          action: "batch-train",
-          modelId,
-          horizonHours,
-          batchRuns,
-          punishmentFactor,
-          excludeRoadsideTests,
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) {
-        setMsg(j.message ?? "Failed to start batch training.");
-        return;
-      }
-      setMsg(
-        `Batch training started: ${j.batchTraining?.runsRequested ?? batchRuns} runs with punishment ${(Number(j.batchTraining?.punishmentFactor ?? punishmentFactor) * 100).toFixed(0)}%.`,
-      );
-      await load();
-    } finally {
-      setBatchTraining(false);
-    }
-  }, [
-    token,
-    authHeaders,
-    modelId,
-    horizonHours,
-    batchRuns,
-    punishmentFactor,
-    excludeRoadsideTests,
-    load,
-  ]);
-
-  const trainSelectedModel = useCallback(async () => {
-    if (!token) return;
-    setTraining(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/predictions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(authHeaders ?? {}) },
-        body: JSON.stringify({
-          action: "train",
-          modelId,
-          horizonHours,
-          excludeRoadsideTests,
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) {
-        setMsg(j.message ?? "Failed to train model.");
-        return;
-      }
-      setMsg(`Training started for ${j.training?.modelId ?? modelId}.`);
-    } finally {
-      setTraining(false);
-    }
-  }, [token, authHeaders, modelId, horizonHours, excludeRoadsideTests]);
 
   const checkAndConsolidate = useCallback(async () => {
     if (!token) return;
@@ -554,26 +499,10 @@ export function PredictionsClient() {
   return (
     <div className="min-h-dvh w-full bg-black">
       <div className="mx-auto min-h-dvh w-full max-w-[920px] p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[20px] font-semibold text-white/95">
-              Predictions
-            </div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60">
-              Crime prediction engine — view runs and trigger new analyses.
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/">
-              Map
-            </Link>
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
-              Markets
-            </Link>
-          </div>
-        </div>
-
-        <div className="ui-divider mt-4" />
+        <NavBar
+          title="Predictions"
+          subtitle="Crime prediction engine — view runs and trigger new analyses."
+        />
 
         {msg && (
           <div className="ui-card mt-4 text-[11px] leading-4 text-(--danger)">
@@ -611,10 +540,10 @@ export function PredictionsClient() {
                 <div className="text-[12px] font-semibold text-white/85">Score Distribution</div>
                 <div className="mt-3 space-y-2">
                   {([
-                    ["Excellent (≥80%)", stats.scoreDistribution.excellent, "bg-emerald-500"],
-                    ["Good (≥60%)", stats.scoreDistribution.good, "bg-green-500"],
-                    ["Fair (≥40%)", stats.scoreDistribution.fair, "bg-yellow-500"],
-                    ["Poor (<40%)", stats.scoreDistribution.poor, "bg-red-500"],
+                    ["Excellent (≥80%)", stats.scoreDistribution.excellent, "bg-[color:var(--success)]"],
+                    ["Good (≥60%)", stats.scoreDistribution.good, "bg-[color:var(--success)]"],
+                    ["Fair (≥40%)", stats.scoreDistribution.fair, "bg-[color:var(--warning)]"],
+                    ["Poor (<40%)", stats.scoreDistribution.poor, "bg-[color:var(--danger)]"],
                   ] as const).map(([label, count, color]) => {
                     const total = stats.evaluatedRuns || 1;
                     return (
@@ -700,21 +629,33 @@ export function PredictionsClient() {
               Run Analysis
             </div>
             <div className="mt-3 grid grid-cols-1 gap-2">
-              <select
-                className="ui-select"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                disabled={!token}
-              >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id}
-                  </option>
-                ))}
-              </select>
+              {(() => {
+                const m = models.find((mm) => mm.id === modelId);
+                if (!m) return null;
+                if (m.hasSnapshot) {
+                  return (
+                    <div className="text-[10px] text-[color:var(--success)]/80">
+                      Snapshot loaded — horizons {m.snapshotHorizons.join("h, ")}h • updated {relativeTime(m.snapshotUpdatedAtMs)}
+                    </div>
+                  );
+                }
+                if (!m.trainable) {
+                  return (
+                    <div className="text-[10px] text-amber-400/80">
+                      No snapshot — upload via the Kaggle notebook.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="text-[10px] text-white/35">
+                    No snapshot yet — train in-app to populate.
+                  </div>
+                );
+              })()}
               <label className="flex items-center gap-2 text-[11px] text-white/70">
                 <input
                   type="checkbox"
+                  className="ui-checkbox"
                   checked={excludeRoadsideTests}
                   onChange={(e) => setExcludeRoadsideTests(e.target.checked)}
                   disabled={!token}
@@ -735,35 +676,6 @@ export function PredictionsClient() {
                   disabled={!token}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <label className="shrink-0 text-[11px] text-white/60">
-                  Batch runs
-                </label>
-                <input
-                  className="ui-input"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={batchRuns}
-                  onChange={(e) => setBatchRuns(Number(e.target.value))}
-                  disabled={!token}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="shrink-0 text-[11px] text-white/60">
-                  Punishment factor
-                </label>
-                <input
-                  className="ui-input"
-                  type="number"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={punishmentFactor}
-                  onChange={(e) => setPunishmentFactor(Number(e.target.value))}
-                  disabled={!token}
-                />
-              </div>
               <button
                 type="button"
                 className="ui-btn-primary"
@@ -771,26 +683,6 @@ export function PredictionsClient() {
                 disabled={!token || loading}
               >
                 {loading ? "Running..." : "Run Prediction"}
-              </button>
-              <button
-                type="button"
-                className="ui-btn"
-                onClick={() => void triggerBatchTraining()}
-                disabled={!token || batchTraining}
-              >
-                {batchTraining ? "Batch Training..." : "Auto-Train Batch (100 max)"}
-              </button>
-              <button
-                type="button"
-                className="ui-btn"
-                onClick={() => void trainSelectedModel()}
-                disabled={
-                  !token ||
-                  training ||
-                  !models.find((m) => m.id === modelId)?.trainable
-                }
-              >
-                {training ? "Training..." : "Train Model"}
               </button>
               <div className="flex items-center gap-2">
                 <select

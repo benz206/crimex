@@ -1,38 +1,27 @@
 import type { PredictionModelPort } from "../../application/ports";
-import { BaselineModel } from "./baseline";
-import { MovingAverageModel } from "./movingAverage";
-import { TrendModel } from "./trend";
-import { PoissonModel } from "./poisson";
-import { EnsembleModel } from "./ensemble";
+import { TrainedModel } from "./trained";
 
 type ModelFactory = () => PredictionModelPort;
 
-function createSubModels(): PredictionModelPort[] {
-  return [
-    new BaselineModel(),
-    new MovingAverageModel(),
-    new TrendModel(),
-    new PoissonModel(),
-  ];
-}
-
 const factories: [string, ModelFactory][] = [
-  ["baseline-v1", () => new BaselineModel()],
-  ["moving-average-v1", () => new MovingAverageModel()],
-  ["trend-v1", () => new TrendModel()],
-  ["poisson-v1", () => new PoissonModel()],
-  ["ensemble-v1", () => new EnsembleModel(createSubModels())],
+  ["trained-v1", () => new TrainedModel()],
 ];
 
 const factoryMap = new Map<string, ModelFactory>(factories);
+const instanceCache = new Map<string, PredictionModelPort>();
 
 export function getModel(id: string): PredictionModelPort | undefined {
+  const cached = instanceCache.get(id);
+  if (cached) return cached;
   const factory = factoryMap.get(id);
-  return factory?.();
+  if (!factory) return undefined;
+  const instance = factory();
+  instanceCache.set(id, instance);
+  return instance;
 }
 
 export function listModels(): PredictionModelPort[] {
-  return factories.map(([, f]) => f());
+  return listModelIds().map((id) => getModel(id)!);
 }
 
 export function listModelIds(): string[] {

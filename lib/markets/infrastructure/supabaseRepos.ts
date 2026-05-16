@@ -16,6 +16,7 @@ import {
   BonusCooldownError,
   InsufficientFundsError,
   InvalidMarketTypeError,
+  MarketAlreadyResolvedError,
   MarketClosedError,
   NotFoundError,
   UnauthorizedError,
@@ -25,6 +26,7 @@ function mapRpcError(e: unknown): Error {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("unauthorized")) return new UnauthorizedError();
   if (msg.includes("cooldown")) return new BonusCooldownError();
+  if (msg.includes("market_already_resolved")) return new MarketAlreadyResolvedError();
   if (msg.includes("market_closed")) return new MarketClosedError();
   if (msg.includes("market_not_found")) return new NotFoundError("market not found");
   if (msg.includes("invalid_market_type")) return new InvalidMarketTypeError();
@@ -35,7 +37,7 @@ function mapRpcError(e: unknown): Error {
 export class SupabaseWalletRepo implements WalletRepo {
   constructor(private readonly sb: SupabaseClient) {}
 
-  async getOrCreate(userId: string) {
+  async getOrCreate(_userId: string) {
     const { data, error } = await this.sb.rpc("get_or_create_wallet_v1");
     if (error) throw mapRpcError(error);
     return {
@@ -57,7 +59,7 @@ export class SupabaseWalletRepo implements WalletRepo {
     };
   }
 
-  async claimDailyBonus(userId: string) {
+  async claimDailyBonus(_userId: string) {
     const { data, error } = await this.sb.rpc("claim_daily_bonus_v1");
     if (error) throw mapRpcError(error);
     return {
@@ -122,7 +124,8 @@ export class SupabaseMarketRepo implements MarketRepo {
     const { data, error } = await this.sb
       .from("markets")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(200);
     if (error) throw mapRpcError(error);
     return (data ?? []).map((m) => ({
       id: m.id,
@@ -157,6 +160,9 @@ export class SupabaseMarketRepo implements MarketRepo {
   }
 
   async resolve(marketId: string, resolvedOutcome: Outcome, resolvedBy: string) {
+    // TODO: pass resolver identity once the RPC is extended; currently the RPC
+    // uses auth.uid() directly to record resolved_by in the resolutions table.
+    void resolvedBy;
     const { error } = await this.sb.rpc("resolve_market_v1", {
       p_market_id: marketId,
       p_resolved_outcome: resolvedOutcome,
@@ -165,6 +171,9 @@ export class SupabaseMarketRepo implements MarketRepo {
   }
 
   async resolveParimutuel(marketId: string, resolvedOutcome: Outcome, resolvedBy: string) {
+    // TODO: pass resolver identity once the RPC is extended; currently the RPC
+    // uses auth.uid() directly to record resolved_by in the resolutions table.
+    void resolvedBy;
     const { error } = await this.sb.rpc("resolve_parimutuel_market_v1", {
       p_market_id: marketId,
       p_resolved_outcome: resolvedOutcome,
@@ -251,7 +260,18 @@ export class SupabaseTradingRepo implements TradingRepo {
         reservedCentsRemaining: Number(data.order.reserved_cents_remaining),
         createdAtMs: Date.parse(data.order.created_at),
       },
-      trades: (data.trades ?? []).map((t: any) => ({
+      trades: (data.trades ?? []).map((t: {
+        id: string;
+        market_id: string;
+        outcome: string;
+        maker_order_id: string;
+        taker_order_id: string;
+        maker_user_id: string;
+        taker_user_id: string;
+        price_cents: number;
+        qty: number;
+        created_at: string;
+      }) => ({
         id: t.id,
         marketId: t.market_id,
         outcome: t.outcome,
@@ -268,7 +288,15 @@ export class SupabaseTradingRepo implements TradingRepo {
         balanceCents: Number(data.wallet.balance_cents),
         updatedAtMs: Date.parse(data.wallet.updated_at),
       },
-      positions: (data.positions ?? []).map((p: any) => ({
+      positions: (data.positions ?? []).map((p: {
+        user_id: string;
+        market_id: string;
+        outcome: string;
+        qty: number;
+        avg_open_price_cents: number;
+        collateral_cents: number | string;
+        updated_at: string;
+      }) => ({
         userId: p.user_id,
         marketId: p.market_id,
         outcome: p.outcome,

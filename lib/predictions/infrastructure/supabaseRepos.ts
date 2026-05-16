@@ -1,6 +1,97 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateRunInput, PredictionRepo, RunPredictionStats, IncidentTypeStats } from "../application/ports";
-import type { RunStatus, NewPrediction, ActualUpdate, ActualIncident, RunFilters, ModelCalibrationData, ModelStateSnapshot } from "../domain/types";
+import type { RunStatus, TriggerType, NewPrediction, ActualUpdate, ActualIncident, RunFilters, ModelCalibrationData, ModelStateSnapshot } from "../domain/types";
+
+type PredictionRunRow = {
+  id: string;
+  model_id: string;
+  horizon_hours: number;
+  window_start: string;
+  window_end: string;
+  status: RunStatus;
+  triggered_by: TriggerType;
+  created_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  run_name?: string | null;
+  short_id?: string | null;
+};
+
+type PredictionRow = {
+  id: string;
+  run_id: string;
+  incident_type: string;
+  city: string | null;
+  predicted_count: number;
+  actual_count: number | null;
+  confidence: number | null;
+  score: number | null;
+  brier_score: number | null;
+  log_loss: number | null;
+  lat: number | null;
+  lng: number | null;
+  actual_lat: number | null;
+  actual_lng: number | null;
+  evaluated_at: string | null;
+  created_at: string;
+};
+
+type RunStatsRow = {
+  run_id: string;
+  total_predictions: number;
+  evaluated_predictions: number;
+  avg_score: number | null;
+  mae: number | null;
+  hit_rate: number | null;
+};
+
+type TypeStatsRow = {
+  incident_type: string;
+  total_predictions: number;
+  evaluated_predictions: number;
+  avg_score: number | null;
+  mae: number | null;
+  hit_rate: number | null;
+};
+
+type CalibrationTypeRow = {
+  incident_type: string;
+  avg_bias: number;
+  avg_score: number;
+  sample_count: number;
+};
+
+type ActualCacheRow = {
+  incident_type: string;
+  city: string | null;
+  lat: number | null;
+  lng: number | null;
+  date_ms: number;
+};
+
+type CheckJobRow = {
+  id: string;
+  status: string;
+  phase: string;
+  expired_run_count: number;
+  checked: number;
+  consolidated: number;
+  rechecked: number;
+  reconsolidated: number;
+  total_consolidated: number;
+  active_run_id: string | null;
+  active_run_name: string | null;
+  active_run_short_id: string | null;
+  last_consolidated_run_id: string | null;
+  last_consolidated_run_name: string | null;
+  last_consolidated_run_short_id: string | null;
+  error_message: string | null;
+  created_by: string | null;
+  started_at: string;
+  completed_at: string | null;
+};
 
 export class SupabasePredictionRepo implements PredictionRepo {
   constructor(private readonly sb: SupabaseClient) {}
@@ -52,26 +143,22 @@ export class SupabasePredictionRepo implements PredictionRepo {
   }
 
   async updateActuals(runId: string, actuals: ActualUpdate[]) {
-    for (const a of actuals) {
-      const q = this.sb
-        .from("predictions")
-        .update({
-          actual_count: a.actualCount,
-          score: a.score,
-          actual_lat: a.actualLat,
-          actual_lng: a.actualLng,
-          evaluated_at: new Date().toISOString(),
-        })
-        .eq("run_id", runId)
-        .eq("incident_type", a.incidentType);
-      if (a.city) {
-        const { error } = await q.eq("city", a.city);
-        if (error) throw error;
-      } else {
-        const { error } = await q.is("city", null);
-        if (error) throw error;
-      }
-    }
+    if (actuals.length === 0) return;
+    const payload = actuals.map((a) => ({
+      incidentType: a.incidentType,
+      city: a.city ?? null,
+      actualCount: a.actualCount,
+      score: a.score,
+      brierScore: a.brierScore,
+      logLoss: a.logLoss,
+      actualLat: a.actualLat ?? null,
+      actualLng: a.actualLng ?? null,
+    }));
+    const { error } = await this.sb.rpc("bulk_update_prediction_actuals", {
+      p_run_id: runId,
+      p_actuals: payload,
+    });
+    if (error) throw error;
   }
 
   async getRun(id: string) {
@@ -96,9 +183,10 @@ export class SupabasePredictionRepo implements PredictionRepo {
       q = q.gte("created_at", new Date(filters.startMs).toISOString());
     if (filters?.endMs)
       q = q.lte("created_at", new Date(filters.endMs).toISOString());
+    if (filters?.limit && filters.limit > 0) q = q.limit(Math.min(1000, Math.floor(filters.limit)));
     const { data, error } = await q;
     if (error) throw error;
-    return (data ?? []).map((r: any) => this.mapRun(r));
+    return (data ?? []).map((r: PredictionRunRow) => this.mapRun(r));
   }
 
   async getPredictions(runId: string) {
@@ -108,7 +196,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
       .eq("run_id", runId)
       .order("predicted_count", { ascending: false });
     if (error) throw error;
-    return (data ?? []).map((p: any) => ({
+    return (data ?? []).map((p: PredictionRow) => ({
       id: p.id,
       runId: p.run_id,
       incidentType: p.incident_type,
@@ -117,6 +205,8 @@ export class SupabasePredictionRepo implements PredictionRepo {
       actualCount: p.actual_count,
       confidence: p.confidence,
       score: p.score ?? null,
+      brierScore: p.brier_score ?? null,
+      logLoss: p.log_loss ?? null,
       lat: p.lat,
       lng: p.lng,
       actualLat: p.actual_lat ?? null,
@@ -135,7 +225,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
       if (fbErr) throw fbErr;
       return this.aggregateRunStats(fallback ?? []);
     }
-    return (data ?? []).map((r: any) => ({
+    return (data ?? []).map((r: RunStatsRow) => ({
       runId: r.run_id,
       totalPredictions: Number(r.total_predictions),
       evaluatedPredictions: Number(r.evaluated_predictions),
@@ -154,7 +244,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
       if (fbErr) throw fbErr;
       return this.aggregateTypeStats(fallback ?? []);
     }
-    return (data ?? []).map((r: any) => ({
+    return (data ?? []).map((r: TypeStatsRow) => ({
       incidentType: r.incident_type,
       totalPredictions: Number(r.total_predictions),
       evaluatedPredictions: Number(r.evaluated_predictions),
@@ -180,7 +270,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
       avgMAE: d.avg_mae ?? null,
       avgBias: d.avg_bias ?? null,
       recentTrend: d.recent_trend ?? null,
-      byIncidentType: (d.by_incident_type ?? []).map((t: any) => ({
+      byIncidentType: (d.by_incident_type ?? []).map((t: CalibrationTypeRow) => ({
         incidentType: t.incident_type,
         avgBias: t.avg_bias ?? 0,
         avgScore: t.avg_score ?? 0,
@@ -195,10 +285,12 @@ export class SupabasePredictionRepo implements PredictionRepo {
     if (recentRuns.length === 0) {
       return { modelId, runCount: 0, avgScore: null, avgMAE: null, avgBias: null, recentTrend: null, byIncidentType: [] };
     }
+    const predsByRun = new Map(
+      await Promise.all(recentRuns.map(async (run) => [run.id, await this.getPredictions(run.id)] as const))
+    );
     const allPreds: Array<{ predicted_count: number; actual_count: number | null; score: number | null; incident_type: string }> = [];
     for (const run of recentRuns) {
-      const preds = await this.getPredictions(run.id);
-      for (const p of preds) {
+      for (const p of predsByRun.get(run.id) ?? []) {
         allPreds.push({ predicted_count: p.predictedCount, actual_count: p.actualCount, score: p.score, incident_type: p.incidentType });
       }
     }
@@ -230,7 +322,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
     const recentScores: number[] = [];
     const olderScores: number[] = [];
     for (const run of recentRuns) {
-      const preds = await this.getPredictions(run.id);
+      const preds = predsByRun.get(run.id) ?? [];
       const s = preds.filter((p) => p.score != null).map((p) => p.score!);
       const avg = s.length > 0 ? s.reduce((a, b) => a + b, 0) / s.length : null;
       if (avg != null) {
@@ -381,11 +473,11 @@ export class SupabasePredictionRepo implements PredictionRepo {
       .eq("run_id", runId);
     if (error) throw error;
     if (!data || data.length === 0) return [];
-    return data.map((r: any) => ({
+    return data.map((r: ActualCacheRow) => ({
       incidentType: r.incident_type,
       city: r.city,
-      lat: r.lat,
-      lng: r.lng,
+      lat: r.lat ?? 0,
+      lng: r.lng ?? 0,
       dateMs: Number(r.date_ms),
     }));
   }
@@ -467,11 +559,87 @@ export class SupabasePredictionRepo implements PredictionRepo {
     };
   }
 
-  private mapRun(r: any) {
+  async listModelSnapshotsMeta(): Promise<Array<{ modelId: string; horizonHours: number; updatedAtMs: number }>> {
+    const { data, error } = await this.sb
+      .from("prediction_model_snapshots")
+      .select("model_id, horizon_hours, updated_at");
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      modelId: r.model_id as string,
+      horizonHours: r.horizon_hours as number,
+      updatedAtMs: Date.parse(r.updated_at as string),
+    }));
+  }
+
+  async tryAcquireModelLock(modelId: string, horizonHours: number): Promise<boolean> {
+    const key = this.modelLockKey(modelId, horizonHours);
+    const { data, error } = await this.sb.rpc("try_lock_model_state", { p_key: key });
+    if (error) throw error;
+    return data === true;
+  }
+
+  async releaseModelLock(modelId: string, horizonHours: number): Promise<void> {
+    const key = this.modelLockKey(modelId, horizonHours);
+    const { error } = await this.sb.rpc("unlock_model_state", { p_key: key });
+    if (error) throw error;
+  }
+
+  async resetAll(): Promise<{
+    deletedRuns: number;
+    deletedPredictions: number;
+    deletedCheckJobs: number;
+    deletedActualCache: number;
+  }> {
+    const DUMMY_UUID = "00000000-0000-0000-0000-000000000000";
+
+    const [runsCount, predictionsCount, checkJobsCount, actualCacheCount] = await Promise.all([
+      this.sb.from("prediction_runs").select("id", { count: "exact", head: true }),
+      this.sb.from("predictions").select("id", { count: "exact", head: true }),
+      this.sb.from("prediction_check_jobs").select("id", { count: "exact", head: true }),
+      this.sb.from("prediction_actual_cache").select("id", { count: "exact", head: true }),
+    ]);
+
+    const deletedRuns = runsCount.count ?? 0;
+    const deletedPredictions = predictionsCount.count ?? 0;
+    const deletedCheckJobs = checkJobsCount.count ?? 0;
+    const deletedActualCache = actualCacheCount.count ?? 0;
+
+    const { error: runsErr } = await this.sb
+      .from("prediction_runs")
+      .delete()
+      .neq("id", DUMMY_UUID);
+    if (runsErr) throw new Error(`Failed to delete prediction_runs: ${runsErr.message}`);
+
+    const { error: checkJobsErr } = await this.sb
+      .from("prediction_check_jobs")
+      .delete()
+      .neq("id", DUMMY_UUID);
+    if (checkJobsErr) throw new Error(`Failed to delete prediction_check_jobs: ${checkJobsErr.message}`);
+
+    const { error: actualCacheErr } = await this.sb
+      .from("prediction_actual_cache")
+      .delete()
+      .neq("id", DUMMY_UUID);
+    if (actualCacheErr) throw new Error(`Failed to delete prediction_actual_cache: ${actualCacheErr.message}`);
+
+    return { deletedRuns, deletedPredictions, deletedCheckJobs, deletedActualCache };
+  }
+
+  private modelLockKey(modelId: string, horizonHours: number): number {
+    const raw = `${modelId}:${horizonHours}`;
+    let h = 2166136261;
+    for (let i = 0; i < raw.length; i++) {
+      h ^= raw.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h | 0;
+  }
+
+  private mapRun(r: PredictionRunRow) {
     return {
       id: r.id,
-      shortId: r.short_id,
-      runName: r.run_name,
+      shortId: r.short_id ?? "",
+      runName: r.run_name ?? "",
       modelId: r.model_id,
       status: r.status,
       horizonHours: r.horizon_hours,
@@ -486,7 +654,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
     };
   }
 
-  private mapCheckJob(r: any) {
+  private mapCheckJob(r: CheckJobRow) {
     return {
       id: r.id,
       status: r.status as "running" | "completed" | "failed",

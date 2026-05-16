@@ -1,8 +1,8 @@
 "use client";
 
 import { useAccessToken } from "@/lib/useAccessToken";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { NavBar } from "@/components/NavBar";
 
 type Market = {
   id: string;
@@ -101,6 +101,8 @@ export function MarketClient({ marketId }: { marketId: string }) {
     bets: [],
   });
 
+  const [loading, setLoading] = useState(true);
+
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [outcome, setOutcome] = useState<"YES" | "NO">("YES");
   const [priceCents, setPriceCents] = useState(50);
@@ -149,7 +151,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
       setWallet(null);
     }
 
-    await Promise.all(fetches);
+    await Promise.all(fetches).finally(() => setLoading(false));
   }, [authHeaders, marketId, token]);
 
   useEffect(() => {
@@ -247,26 +249,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
   return (
     <div className="min-h-dvh w-full bg-black">
       <div className="mx-auto min-h-dvh w-full max-w-[920px] p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[20px] font-semibold text-white/95">
-              {market?.title ?? "Market"}
-            </div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60">
-              {market?.status ?? "Loading..."}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
-              Back
-            </Link>
-            <Link className="ui-btn h-9 px-3 text-[13px]" href={token ? "/profile" : "/login"}>
-              {token ? "Profile" : "Sign in"}
-            </Link>
-          </div>
-        </div>
-
-        <div className="ui-divider mt-4" />
+        <NavBar title={market?.title ?? "Market"} subtitle={market?.status ?? "Loading..."} backHref="/markets" backLabel="Markets" />
 
         {msg && (
           <div className="mt-4 ui-card text-[11px] leading-4 text-(--danger)">
@@ -281,15 +264,23 @@ export function MarketClient({ marketId }: { marketId: string }) {
               <div className="mt-3 grid grid-cols-2 gap-3 text-[12px] text-white/70">
                 <div className="ui-card">
                   <div className="text-[11px] text-white/60">YES</div>
-                  <div className="mt-1">
-                    Bid: {top?.bestBidYes ?? "—"} / Ask: {top?.bestAskYes ?? "—"}
-                  </div>
+                  {loading && !market ? (
+                    <div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-white/[0.08]" />
+                  ) : (
+                    <div className="mt-1">
+                      Bid: {top?.bestBidYes ?? "—"} / Ask: {top?.bestAskYes ?? "—"}
+                    </div>
+                  )}
                 </div>
                 <div className="ui-card">
                   <div className="text-[11px] text-white/60">NO</div>
-                  <div className="mt-1">
-                    Bid: {top?.bestBidNo ?? "—"} / Ask: {top?.bestAskNo ?? "—"}
-                  </div>
+                  {loading && !market ? (
+                    <div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-white/[0.08]" />
+                  ) : (
+                    <div className="mt-1">
+                      Bid: {top?.bestBidNo ?? "—"} / Ask: {top?.bestAskNo ?? "—"}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -299,15 +290,23 @@ export function MarketClient({ marketId }: { marketId: string }) {
               <div className="mt-3 grid grid-cols-2 gap-3 text-[12px] text-white/70">
                 <div className="ui-card">
                   <div className="text-[11px] text-white/60">YES</div>
-                  <div className="mt-1">
-                    ${(Number(pool?.yesPoolCents ?? 0) / 100).toFixed(2)}
-                  </div>
+                  {loading && !market ? (
+                    <div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-white/[0.08]" />
+                  ) : (
+                    <div className="mt-1">
+                      ${(Number(pool?.yesPoolCents ?? 0) / 100).toFixed(2)}
+                    </div>
+                  )}
                 </div>
                 <div className="ui-card">
                   <div className="text-[11px] text-white/60">NO</div>
-                  <div className="mt-1">
-                    ${(Number(pool?.noPoolCents ?? 0) / 100).toFixed(2)}
-                  </div>
+                  {loading && !market ? (
+                    <div className="mt-1 h-3 w-3/4 animate-pulse rounded bg-white/[0.08]" />
+                  ) : (
+                    <div className="mt-1">
+                      ${(Number(pool?.noPoolCents ?? 0) / 100).toFixed(2)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -319,7 +318,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
               {token
                 ? wallet
                   ? `Balance: $${(Number(wallet.balanceCents) / 100).toFixed(2)}`
-                  : "Loading..."
+                  : <div className="mt-1 h-3 w-32 animate-pulse rounded bg-white/[0.08]" />
                 : "Sign in to trade."}
             </div>
           </div>

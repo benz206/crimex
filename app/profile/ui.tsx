@@ -5,6 +5,7 @@ import { CircleUserRound, LogOut, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { NavBar } from "@/components/NavBar";
 
 type UserShape = { id: string; email: string | null; created_at?: string };
 
@@ -65,21 +66,7 @@ export function ProfileClient() {
     <div className="min-h-dvh w-full bg-black">
       <div className="mx-auto flex min-h-dvh w-full max-w-[640px] items-center justify-center p-3">
         <div className="ui-panel w-full p-4 md:p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[20px] font-semibold text-white/95">
-                Profile
-              </div>
-              <div className="mt-1 text-[11px] leading-4 text-white/60">
-                Your Supabase account details.
-              </div>
-            </div>
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/">
-              Back
-            </Link>
-          </div>
-
-          <div className="ui-divider mt-4" />
+          <NavBar title="Profile" />
 
           {!sb ? (
             <div className="mt-4 ui-card">

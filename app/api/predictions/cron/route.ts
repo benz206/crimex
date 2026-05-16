@@ -32,24 +32,34 @@ async function handleCron(req: Request) {
         : DEFAULT_DAILY_TARGET;
     const todayRuns = await predictionRepo.listRuns({ startMs: dayStartMs, endMs: nowMs });
     const todayCronRuns = todayRuns.filter((run) => run.triggeredBy === "cron");
-    const results = [];
+    const results: Awaited<ReturnType<typeof runPrediction>>[] = [];
     const runsNeeded = Math.max(0, dailyTarget - todayCronRuns.length);
+    const CONCURRENCY = 4;
+    const jobs: Array<() => Promise<void>> = [];
     for (let i = 0; i < runsNeeded; i++) {
       const modelId = modelIds[i % modelIds.length] ?? "baseline-v1";
       const horizonHours = DEFAULT_HORIZONS[i % DEFAULT_HORIZONS.length] ?? 4;
       const model = getModel(modelId);
       if (!model) continue;
-      const run = await runPrediction(
-        { predictionRepo, incidentData, model },
-        {
-          horizonHours,
-          triggeredBy: "cron",
-          createdBy: null,
-          excludeRoadsideTests: true,
-        },
-      );
-      results.push(run);
+      jobs.push(async () => {
+        try {
+          const run = await runPrediction(
+            { predictionRepo, incidentData, model },
+            { horizonHours, triggeredBy: "cron", createdBy: null, excludeRoadsideTests: true },
+          );
+          results.push(run);
+        } catch (err) {
+          console.error("[cron] runPrediction failed", err);
+        }
+      });
     }
+    const workers = Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, async () => {
+      while (jobs.length > 0) {
+        const job = jobs.shift();
+        if (job) await job();
+      }
+    });
+    await Promise.all(workers);
     const consolidation = await checkAndConsolidate({
       predictionRepo,
       incidentData,

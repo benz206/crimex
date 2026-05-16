@@ -1,14 +1,12 @@
 import { listRuns } from "@/lib/predictions/application/usecases/listRuns";
 import { runPrediction } from "@/lib/predictions/application/usecases/runPrediction";
-import { trainModel } from "@/lib/predictions/application/usecases/trainModel";
 import { checkAndConsolidate } from "@/lib/predictions/application/usecases/checkAndConsolidate";
 import { getConsolidatedStats } from "@/lib/predictions/application/usecases/getConsolidatedStats";
-import { createAuthedSupabaseClient } from "@/lib/markets/infrastructure/supabaseAuthedClient";
 import { SupabasePredictionRepo } from "@/lib/predictions/infrastructure/supabaseRepos";
 import { ArcGISIncidentData } from "@/lib/predictions/infrastructure/incidentData";
 import { getModel, listModels } from "@/lib/predictions/infrastructure/models/registry";
-import { httpErrorResponse, requireBearerToken } from "@/lib/predictions/presentation/http";
-import { getAnonServerClient } from "@/lib/supabase";
+import { httpErrorResponse, requireSupabaseUser } from "@/lib/predictions/presentation/http";
+import { getAnonServerClient, getServiceRoleServerClient } from "@/lib/supabase";
 import { ValidationError } from "@/lib/predictions/application/errors";
 import type { RunStatus } from "@/lib/predictions/domain/types";
 import type { CheckMode } from "@/lib/predictions/application/usecases/checkAndConsolidate";
@@ -32,6 +30,7 @@ export async function GET(req: Request) {
         ...(modelId ? { modelId } : {}),
         ...(startMs ? { startMs: Number(startMs) } : {}),
         ...(endMs ? { endMs: Number(endMs) } : {}),
+        ...(limit != null && Number.isFinite(limit) && limit > 0 ? { limit: Math.min(1000, Math.floor(limit)) } : {}),
       },
     );
     const cappedRuns =
@@ -41,12 +40,29 @@ export async function GET(req: Request) {
     const includeStats = url.searchParams.get("includeStats");
     const responseBody: Record<string, unknown> = { runs: cappedRuns };
     if (includeModels === "1" || includeModels === "true") {
-      responseBody.models = listModels().map((m) => ({ id: m.id, trainable: Boolean(m.train) }));
+      const snapshotMeta = await predictionRepo.listModelSnapshotsMeta();
+      const snapshotsByModel = new Map<string, { horizons: number[]; latestMs: number }>();
+      for (const s of snapshotMeta) {
+        const cur = snapshotsByModel.get(s.modelId) ?? { horizons: [], latestMs: 0 };
+        cur.horizons.push(s.horizonHours);
+        cur.latestMs = Math.max(cur.latestMs, s.updatedAtMs);
+        snapshotsByModel.set(s.modelId, cur);
+      }
+      responseBody.models = listModels().map((m) => {
+        const snap = snapshotsByModel.get(m.id);
+        return {
+          id: m.id,
+          trainable: m.trainable,
+          hasSnapshot: !!snap,
+          snapshotHorizons: snap ? [...snap.horizons].sort((a, b) => a - b) : [],
+          snapshotUpdatedAtMs: snap ? snap.latestMs : null,
+        };
+      });
     }
     if (includeStats === "1" || includeStats === "true") {
       responseBody.stats = await getConsolidatedStats({ predictionRepo });
     }
-    return Response.json(responseBody);
+    return Response.json(responseBody, { headers: { "Cache-Control": "private, max-age=10, stale-while-revalidate=30" } });
   } catch (e) {
     return httpErrorResponse(e);
   }
@@ -54,28 +70,18 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const token = requireBearerToken(req);
-    const sb = createAuthedSupabaseClient(token);
+    await requireSupabaseUser(req);
+    const sb = getServiceRoleServerClient();
     const predictionRepo = new SupabasePredictionRepo(sb);
     const incidentData = new ArcGISIncidentData();
     const body = (await req.json()) as Record<string, unknown>;
     const action = typeof body.action === "string" ? body.action : "run";
-    const modelId = typeof body.modelId === "string" ? body.modelId : "baseline-v1";
+    const modelId = typeof body.modelId === "string" ? body.modelId : "trained-v1";
     const horizonHours = typeof body.horizonHours === "number" ? body.horizonHours : NaN;
     const excludeRoadsideTests =
       typeof body.excludeRoadsideTests === "boolean" ? body.excludeRoadsideTests : true;
-    const batchRuns = typeof body.batchRuns === "number" ? body.batchRuns : 1;
-    const punishmentFactor =
-      typeof body.punishmentFactor === "number" ? body.punishmentFactor : 0;
     const model = getModel(modelId);
     if (!model) throw new ValidationError(`Unknown model: ${modelId}`);
-    if (action === "train") {
-      const training = await trainModel(
-        { incidentData, model, predictionRepo },
-        { horizonHours, excludeRoadsideTests },
-      );
-      return Response.json({ training }, { status: 201 });
-    }
     if (action === "check") {
       const checkMode: CheckMode =
         typeof body.checkMode === "string" && (body.checkMode === "new_only" || body.checkMode === "all")
@@ -132,47 +138,6 @@ export async function POST(req: Request) {
       if (!checkJob) throw new ValidationError("check job not found");
       return Response.json({ checkJob });
     }
-    if (action === "batch-train") {
-      if (batchRuns < 1 || batchRuns > 100) {
-        throw new ValidationError("batchRuns must be between 1 and 100");
-      }
-      if (!Number.isFinite(punishmentFactor) || punishmentFactor < 0 || punishmentFactor > 1) {
-        throw new ValidationError("punishmentFactor must be between 0 and 1");
-      }
-      const startedAtMs = Date.now();
-      const acceptedAt = new Date(startedAtMs).toISOString();
-      const runs = [];
-      for (let i = 0; i < batchRuns; i++) {
-        const variedHorizon = Math.max(1, Math.min(24, horizonHours + (i % 5) - 2));
-        const historicalWeeksBack = 6 + (i % 7);
-        const run = await runPrediction(
-          { predictionRepo, incidentData, model },
-          {
-            horizonHours: variedHorizon,
-            triggeredBy: "manual",
-            createdBy: null,
-            excludeRoadsideTests,
-            historicalWeeksBack,
-            punishmentFactor,
-            diversitySeed: `${modelId}:${acceptedAt}:${i}`,
-          },
-        );
-        runs.push(run);
-      }
-      return Response.json(
-        {
-          batchTraining: {
-            modelId,
-            runsRequested: batchRuns,
-            punishmentFactor,
-            acceptedAtMs: startedAtMs,
-            completedRuns: runs.length,
-          },
-          runs,
-        },
-        { status: 201 },
-      );
-    }
     const run = await runPrediction(
       { predictionRepo, incidentData, model },
       {
@@ -180,7 +145,6 @@ export async function POST(req: Request) {
         triggeredBy: "manual",
         createdBy: null,
         excludeRoadsideTests,
-        punishmentFactor,
       },
     );
     return Response.json({ run }, { status: 201 });

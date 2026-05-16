@@ -10,7 +10,7 @@ export async function GET() {
     const sb = getAnonServerClient();
     const marketRepo = new SupabaseMarketRepo(sb);
     const markets = await listMarkets({ marketRepo });
-    return Response.json({ markets });
+    return Response.json({ markets }, { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } });
   } catch (e) {
     return httpErrorResponse(e);
   }
