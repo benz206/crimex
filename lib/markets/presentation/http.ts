@@ -30,5 +30,5 @@ export function requireBearerToken(req: Request): string {
   const h = req.headers.get("authorization") ?? "";
   const m = h.match(/^Bearer\s+(.+)$/i);
   if (!m) throw new AppError("UNAUTHORIZED", "Missing bearer token");
-  return m[1];
+  return m[1]!;
 }

@@ -11,8 +11,8 @@ const handler = async () => {
   }
 
   const res = await fetch(
-    `${baseUrl}/api/markets/auto/seed?cronSecret=${encodeURIComponent(secret)}`,
-    { method: "GET" },
+    `${baseUrl}/api/markets/auto/seed`,
+    { method: "GET", headers: { Authorization: `Bearer ${secret}` } },
   );
 
   if (!res.ok) {

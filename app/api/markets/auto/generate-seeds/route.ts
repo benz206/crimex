@@ -47,6 +47,7 @@ async function handleGenerateSeeds(req: Request): Promise<Response> {
     }
 
     const run = runRows[0];
+    if (!run) return Response.json({ ok: true, generated: 0, reason: "no completed trained-v1 run" });
 
     const { data: predRows, error: predErr } = await sb
       .from("predictions")

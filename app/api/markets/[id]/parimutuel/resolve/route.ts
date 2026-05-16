@@ -2,6 +2,7 @@ import { resolveMarket } from "@/lib/markets/application/usecases/resolveMarket"
 import { createAuthedSupabaseClient } from "@/lib/markets/infrastructure/supabaseAuthedClient";
 import { SupabaseMarketRepo } from "@/lib/markets/infrastructure/supabaseRepos";
 import { httpErrorResponse, requireBearerToken } from "@/lib/markets/presentation/http";
+import { getServiceRoleServerClient } from "@/lib/supabase";
 
 export async function POST(
   req: Request,
@@ -10,13 +11,17 @@ export async function POST(
   try {
     const { id } = await params;
     const token = requireBearerToken(req);
+    const { data: userData, error: userErr } = await getServiceRoleServerClient().auth.getUser(token);
+    if (userErr || !userData.user) {
+      return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    }
     const sb = createAuthedSupabaseClient(token);
     const marketRepo = new SupabaseMarketRepo(sb);
     const body = (await req.json()) as unknown;
     const b = body as { [k: string]: unknown } | null;
     const res = await resolveMarket(
       { marketRepo },
-      { userId: "authed" },
+      { userId: userData.user.id },
       { marketId: id, resolvedOutcome: b?.resolvedOutcome as "YES" | "NO", marketType: "parimutuel" },
     );
     return Response.json(res);

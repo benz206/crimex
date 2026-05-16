@@ -71,6 +71,7 @@ export type RunFilters = {
   modelId?: string;
   startMs?: number;
   endMs?: number;
+  limit?: number;
 };
 
 export type IncidentAggregate = {

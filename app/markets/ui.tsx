@@ -3,6 +3,7 @@
 import { useAccessToken } from "@/lib/useAccessToken";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { NavBar } from "@/components/NavBar";
 
 type Market = {
   id: string;
@@ -27,6 +28,7 @@ export function MarketsClient() {
 
   const [markets, setMarkets] = useState<Market[]>([]);
   const [wallet, setWallet] = useState<{ balanceCents: number } | null>(null);
+  const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -47,10 +49,10 @@ export function MarketsClient() {
         .then(({ ok, j }) => {
           if (ok) setWallet({ balanceCents: Number(j.wallet.balanceCents ?? j.wallet.balance_cents ?? 0) });
         });
-      await Promise.all([marketsFetch, walletFetch]);
+      await Promise.all([marketsFetch, walletFetch]).finally(() => setLoading(false));
     } else {
       setWallet(null);
-      await marketsFetch;
+      await marketsFetch.finally(() => setLoading(false));
     }
   }, [authHeaders, token]);
 
@@ -131,24 +133,7 @@ export function MarketsClient() {
   return (
     <div className="min-h-dvh w-full bg-black">
       <div className="mx-auto min-h-dvh w-full max-w-[920px] p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[20px] font-semibold text-white/95">Markets</div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60">
-              Play-money Kalshi-style markets.
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/">
-              Map
-            </Link>
-            <Link className="ui-btn h-9 px-3 text-[13px]" href={token ? "/profile" : "/login"}>
-              {token ? "Profile" : "Sign in"}
-            </Link>
-          </div>
-        </div>
-
-        <div className="ui-divider mt-4" />
+        <NavBar title="Markets" subtitle="Play-money Kalshi-style markets." />
 
         {msg && (
           <div className="mt-4 ui-card text-[11px] leading-4 text-(--danger)">
@@ -163,7 +148,7 @@ export function MarketsClient() {
               {token
                 ? wallet
                   ? `Balance: $${(wallet.balanceCents / 100).toFixed(2)}`
-                  : "Loading..."
+                  : <div className="mt-1 h-3 w-32 animate-pulse rounded bg-white/[0.08]" />
                 : "Sign in to trade."}
             </div>
             {token && (
@@ -256,7 +241,14 @@ export function MarketsClient() {
         <div className="mt-3 ui-panel p-4">
           <div className="text-[13px] font-semibold text-white/90">All markets</div>
           <div className="mt-3 flex flex-col gap-2">
-            {markets.length === 0 ? (
+            {loading && markets.length === 0 ? (
+              Array.from({ length: 3 }, (_, i) => (
+                <div className="ui-card animate-pulse" key={`skel-${i}`}>
+                  <div className="h-3 w-3/4 rounded bg-white/[0.08]" />
+                  <div className="mt-2 h-2 w-1/3 rounded bg-white/[0.06]" />
+                </div>
+              ))
+            ) : markets.length === 0 ? (
               <div className="ui-card text-[12px] text-white/70">No markets yet.</div>
             ) : (
               markets.map((m) => (

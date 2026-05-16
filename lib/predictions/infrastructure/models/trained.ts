@@ -227,6 +227,7 @@ let _noSnapshotWarned = false;
 
 export class TrainedModel implements PredictionModelPort {
   readonly id = "trained-v1";
+  readonly trainable = false;
 
   private state: TrainedModelState = { snapshot: null };
 
@@ -252,12 +253,12 @@ export class TrainedModel implements PredictionModelPort {
     this.state = { snapshot: raw as TrainedSnapshot };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   async train(_input: TrainInput): Promise<void> {
     // NO-OP: training happens offline in the Kaggle notebook.
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   calibrate(_input: CalibrationInput): void {
     // NO-OP: calibration happens offline.
   }
@@ -276,6 +277,7 @@ export class TrainedModel implements PredictionModelPort {
     }
 
     const groups = groupHistorical(input.historicalData);
+
     const results: PredictOutput[] = [];
 
     for (const [key, g] of groups) {
@@ -316,16 +318,16 @@ export class TrainedModel implements PredictionModelPort {
       const lat = average(g.lats);
       const lng = average(g.lngs);
 
-      if (predictedCount < 1) continue;
-
-      results.push({
-        incidentType,
-        city: city || null,
-        predictedCount,
-        confidence: Math.min(1, Math.max(0, confidence)),
-        lat,
-        lng,
-      });
+      if (predictedCount >= 1) {
+        results.push({
+          incidentType,
+          city: city || null,
+          predictedCount,
+          confidence: Math.min(1, Math.max(0, confidence)),
+          lat,
+          lng,
+        });
+      }
     }
 
     return results;

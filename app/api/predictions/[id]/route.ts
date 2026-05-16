@@ -12,7 +12,9 @@ export async function GET(
     const sb = getAnonServerClient();
     const predictionRepo = new SupabasePredictionRepo(sb);
     const result = await getRunDetail({ predictionRepo }, { runId: id });
-    return Response.json(result);
+    return Response.json(result, {
+      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+    });
   } catch (e) {
     return httpErrorResponse(e);
   }

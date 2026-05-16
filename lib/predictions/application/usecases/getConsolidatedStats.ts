@@ -1,4 +1,4 @@
-import type { PredictionRepo, RunPredictionStats, IncidentTypeStats } from "../ports";
+import type { PredictionRepo, RunPredictionStats } from "../ports";
 import type { PredictionRun } from "../../domain/types";
 
 export type ConsolidatedStats = {

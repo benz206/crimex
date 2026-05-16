@@ -11,8 +11,8 @@ const handler = async () => {
   }
 
   const res = await fetch(
-    `${baseUrl}/api/incidents/ingest?lookbackDays=2&cronSecret=${encodeURIComponent(secret)}`,
-    { method: "GET" },
+    `${baseUrl}/api/incidents/ingest?lookbackDays=2`,
+    { method: "GET", headers: { Authorization: `Bearer ${secret}` } },
   );
 
   if (!res.ok) {

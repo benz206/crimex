@@ -1,8 +1,51 @@
 import type { IncidentDataPort, PredictionModelPort, PredictionRepo } from "../ports";
 import { ValidationError } from "../errors";
 import type { TriggerType } from "../../domain/types";
-import { EnsembleModel } from "../../infrastructure/models/ensemble";
 
+const PREDICTION_LOG_ENABLED = process.env.PREDICTION_DEBUG === "1";
+
+function makeLogger(runShortId: string) {
+  const t0 = Date.now();
+  let lastTick = t0;
+  const fmt = (ms: number) =>
+    ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
+  return {
+    phase(name: string, extra?: Record<string, unknown>) {
+      if (!PREDICTION_LOG_ENABLED) return;
+      const now = Date.now();
+      const sinceStart = fmt(now - t0);
+      const sinceLast = fmt(now - lastTick);
+      lastTick = now;
+      const tag = `[run ${runShortId}] [+${sinceStart} Δ${sinceLast}]`;
+      if (extra) console.log(`${tag} ▶ ${name}`, extra);
+      else console.log(`${tag} ▶ ${name}`);
+    },
+    info(msg: string, extra?: Record<string, unknown>) {
+      if (!PREDICTION_LOG_ENABLED) return;
+      const tag = `[run ${runShortId}]   `;
+      if (extra) console.log(`${tag}${msg}`, extra);
+      else console.log(`${tag}${msg}`);
+    },
+    warn(msg: string, extra?: unknown) {
+      if (!PREDICTION_LOG_ENABLED) return;
+      const tag = `[run ${runShortId}]   `;
+      if (extra !== undefined) console.warn(`${tag}${msg}`, extra);
+      else console.warn(`${tag}${msg}`);
+    },
+    done(name: string, extra?: Record<string, unknown>) {
+      if (!PREDICTION_LOG_ENABLED) return;
+      const total = fmt(Date.now() - t0);
+      const tag = `[run ${runShortId}] [total ${total}]`;
+      if (extra) console.log(`${tag} ✓ ${name}`, extra);
+      else console.log(`${tag} ✓ ${name}`);
+    },
+    fail(name: string, err: unknown) {
+      const total = fmt(Date.now() - t0);
+      const tag = `[run ${runShortId}] [total ${total}]`;
+      console.error(`${tag} ✗ ${name}`, err);
+    },
+  };
+}
 
 export async function runPrediction(
   deps: {
@@ -36,7 +79,10 @@ export async function runPrediction(
   const windowStartMs = now;
   const windowEndMs = now + input.horizonHours * 60 * 60 * 1000;
 
-  console.log("[runPrediction] creating run", { model: deps.model.id, horizonHours: input.horizonHours, triggeredBy: input.triggeredBy });
+  // Bootstrap log without runShortId yet
+  if (PREDICTION_LOG_ENABLED) console.log(
+    `[runPrediction] starting model=${deps.model.id} horizon=${input.horizonHours}h trigger=${input.triggeredBy}`,
+  );
 
   const run = await deps.predictionRepo.createRun({
     modelId: deps.model.id,
@@ -46,89 +92,85 @@ export async function runPrediction(
     triggeredBy: input.triggeredBy,
     createdBy: input.createdBy,
   });
-  console.log("[runPrediction] run created", run.id);
+
+  const log = makeLogger(run.shortId);
+  log.phase("run row created", { id: run.id, shortId: run.shortId });
 
   try {
     await deps.predictionRepo.updateRunStatus(run.id, "running");
+    log.phase("status → running");
 
+    log.phase("acquiring model lock");
     const lockAcquired = await deps.predictionRepo.tryAcquireModelLock(
       deps.model.id,
       input.horizonHours,
     );
+    log.info(`lock acquired: ${lockAcquired}`);
     if (!lockAcquired) {
-      console.warn("[runPrediction] could not acquire model lock, skipping train/save", {
-        modelId: deps.model.id,
-        horizonHours: input.horizonHours,
-      });
+      log.warn("could not acquire model lock — skipping train/save");
     }
 
     const windowStart = new Date(windowStartMs);
     const weeksBack = input.historicalWeeksBack ?? 8;
-    console.log("[runPrediction] fetching historical data", { hourOfDay: windowStart.getUTCHours(), dayOfWeek: windowStart.getUTCDay(), weeksBack });
+    log.phase("fetching historical data", {
+      hourOfDay: windowStart.getUTCHours(),
+      dayOfWeek: windowStart.getUTCDay(),
+      weeksBack,
+    });
     const historicalData = await deps.incidentData.fetchHistorical({
       hourOfDay: windowStart.getUTCHours(),
       dayOfWeek: windowStart.getUTCDay(),
       weeksBack,
       excludeRoadsideTests: input.excludeRoadsideTests ?? true,
     });
-    console.log("[runPrediction] historical data fetched", { count: historicalData.length });
+    log.info(`historical rows fetched: ${historicalData.length}`);
 
     try {
+      log.phase("loading snapshot");
       const existingState = await deps.predictionRepo.getModelStateSnapshot(
         deps.model.id,
         input.horizonHours,
       );
       if (existingState?.state && deps.model.setState) {
         deps.model.setState(existingState.state);
+        log.info(`snapshot loaded (updated ${new Date(existingState.updatedAtMs).toISOString()})`);
+      } else {
+        log.warn(`no snapshot found for ${deps.model.id} h=${input.horizonHours} — predict will return []`);
       }
 
       if (!input.skipCalibration) {
         try {
+          log.phase("fetching calibration data");
           const calibration = await deps.predictionRepo.getModelCalibrationData(deps.model.id);
           if (calibration.runCount >= 2) {
-            console.log("[runPrediction] calibrating model", {
-              modelId: deps.model.id,
+            log.info("applying calibration", {
               runCount: calibration.runCount,
               avgScore: calibration.avgScore,
               avgBias: calibration.avgBias,
               trend: calibration.recentTrend,
             });
-
-            if (deps.model instanceof EnsembleModel) {
-              const subCalibrations = new Map<string, typeof calibration>();
-              const subModelIds = ["baseline-v1", "moving-average-v1", "trend-v1", "poisson-v1"];
-              const calResults = await Promise.all(
-                subModelIds.map((id) => deps.predictionRepo.getModelCalibrationData(id)),
-              );
-              for (const cal of calResults) {
-                subCalibrations.set(cal.modelId, cal);
-              }
-              deps.model.calibrateWeights(subCalibrations);
-              for (const cal of calResults) {
-                if (cal.runCount >= 2) {
-                  deps.model.calibrate?.({ calibration: cal, historicalData });
-                }
-              }
-            } else {
-              deps.model.calibrate?.({ calibration, historicalData });
-            }
+            deps.model.calibrate?.({ calibration, historicalData });
+          } else {
+            log.info(`calibration skipped (only ${calibration.runCount} prior run(s))`);
           }
         } catch (calError) {
-          console.warn("[runPrediction] calibration failed, proceeding without", calError);
+          log.warn("calibration failed, proceeding without", calError);
         }
       }
 
       if (lockAcquired && deps.model.train) {
+        log.phase("training model");
         await deps.model.train({
           horizonHours: input.horizonHours,
           windowStartMs,
           windowEndMs,
           historicalData,
         });
-        console.log("[runPrediction] model trained");
+        log.info("training done (no-op for trained-v1)");
       }
 
       if (lockAcquired && deps.model.getState) {
+        log.phase("saving model snapshot");
         await deps.predictionRepo.saveModelStateSnapshot({
           modelId: deps.model.id,
           horizonHours: input.horizonHours,
@@ -136,19 +178,24 @@ export async function runPrediction(
           source: input.triggeredBy,
           runId: run.id,
         });
+        log.info("snapshot saved");
       }
     } finally {
       if (lockAcquired) {
         await deps.predictionRepo.releaseModelLock(deps.model.id, input.horizonHours);
+        log.info("lock released");
       }
     }
 
+    log.phase("running model.predict()");
     const rawOutputs = await deps.model.predict({
       horizonHours: input.horizonHours,
       windowStartMs,
       windowEndMs,
       historicalData,
     });
+    log.info(`model produced ${rawOutputs.length} raw output(s)`);
+
     const punishment = input.punishmentFactor ?? 0;
     const outputs = rawOutputs
       .map((o) => {
@@ -162,8 +209,9 @@ export async function runPrediction(
         };
       })
       .filter((o) => o.predictedCount > 0);
-    console.log("[runPrediction] model produced", { predictions: outputs.length });
+    log.info(`after punishment(${punishment}) filter: ${outputs.length} prediction(s)`);
 
+    log.phase("inserting predictions");
     await deps.predictionRepo.insertPredictions(
       run.id,
       outputs.map((o) => ({
@@ -176,13 +224,15 @@ export async function runPrediction(
         lng: o.lng,
       })),
     );
-    console.log("[runPrediction] predictions inserted");
 
     await deps.predictionRepo.updateRunStatus(run.id, "completed");
-    console.log("[runPrediction] run completed", run.id);
+    log.done("run completed", {
+      predictionsWritten: outputs.length,
+      historicalRows: historicalData.length,
+    });
     return await deps.predictionRepo.getRun(run.id);
   } catch (e) {
-    console.error("[runPrediction] failed", e);
+    log.fail("run failed", e);
     const msg = e instanceof Error ? e.message : "Unknown error";
     await deps.predictionRepo.updateRunStatus(run.id, "failed", msg);
     throw e;

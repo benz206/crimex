@@ -184,7 +184,7 @@ export class ArcGISIncidentData implements IncidentDataPort {
         d.getUTCDay() === params.dayOfWeek
       );
     });
-    return aggregateByPeriod(filtered as any, startMs);
+    return aggregateByPeriod(filtered as unknown as RawFeature[], startMs);
   }
 
   async fetchActual(params: ActualQuery): Promise<IncidentAggregate[]> {
@@ -198,7 +198,7 @@ export class ArcGISIncidentData implements IncidentDataPort {
       if (params.excludeRoadsideTests && shouldExclude(f.properties.DESCRIPTION)) return false;
       return true;
     });
-    return aggregate(filtered as any);
+    return aggregate(filtered as unknown as RawFeature[]);
   }
 
   async fetchActualRaw(params: ActualQuery): Promise<ActualIncident[]> {
@@ -211,7 +211,7 @@ export class ArcGISIncidentData implements IncidentDataPort {
       if (typeof dateMs !== "number") continue;
       if (dateMs < params.windowStartMs || dateMs > params.windowEndMs) continue;
       if (params.excludeRoadsideTests && shouldExclude(f.properties.DESCRIPTION)) continue;
-      const [lng, lat] = f.geometry.coordinates;
+      const [lng, lat] = f.geometry.coordinates as [number, number];
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
       results.push({
         incidentType: f.properties.DESCRIPTION ?? "UNKNOWN",

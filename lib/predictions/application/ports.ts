@@ -25,10 +25,29 @@ export type CreateRunInput = {
   windowEndMs: number;
   triggeredBy: "cron" | "manual";
   createdBy: string | null;
+  modelVersionId?: string | null;
+};
+
+export type ModelVersionInfo = {
+  id: string;
+  modelId: string;
+  horizonHours: number;
+  versionLabel: string;
+  trainedAt: string | null;
+  metrics: unknown;
+  isCurrent: boolean;
+  createdAt: string;
+};
+
+export type VersionedModelStateSnapshot = {
+  state: ModelState;
+  versionId: string | null;
+  versionLabel: string | null;
 };
 
 export interface PredictionModelPort {
   id: string;
+  trainable: boolean;
   predict(input: PredictInput): Promise<PredictOutput[]>;
   train?(input: TrainInput): Promise<void>;
   calibrate?(input: CalibrationInput): void;
@@ -82,6 +101,13 @@ export interface PredictionRepo {
     source: string | null;
     runId: string | null;
   }): Promise<ModelStateSnapshot>;
+  listModelSnapshotsMeta(): Promise<Array<{ modelId: string; horizonHours: number; updatedAtMs: number }>>;
   tryAcquireModelLock(modelId: string, horizonHours: number): Promise<boolean>;
   releaseModelLock(modelId: string, horizonHours: number): Promise<void>;
+  resetAll(): Promise<{
+    deletedRuns: number;
+    deletedPredictions: number;
+    deletedCheckJobs: number;
+    deletedActualCache: number;
+  }>;
 }

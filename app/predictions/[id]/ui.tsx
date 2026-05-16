@@ -3,6 +3,7 @@
 import { useAccessToken } from "@/lib/useAccessToken";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { NavBar } from "@/components/NavBar";
 
 type PredictionRun = {
   id: string;
@@ -39,10 +40,10 @@ type Prediction = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "text-yellow-400",
-  running: "text-blue-400",
-  completed: "text-green-400",
-  failed: "text-red-400",
+  pending: "text-[color:var(--warning)]",
+  running: "text-[color:var(--info)]",
+  completed: "text-[color:var(--success)]",
+  failed: "text-[color:var(--danger)]",
 };
 
 function computeStats(predictions: Prediction[]) {
@@ -73,7 +74,7 @@ function computeStats(predictions: Prediction[]) {
 }
 
 export function PredictionDetailClient({ runId }: { runId: string }) {
-  const token = useAccessToken();
+  useAccessToken();
   const [run, setRun] = useState<PredictionRun | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -129,22 +130,12 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
   return (
     <div className="min-h-dvh w-full bg-black">
       <div className="mx-auto min-h-dvh w-full max-w-[920px] p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[20px] font-semibold text-white/95">Prediction Run</div>
-            <div className="mt-1 text-[12px] leading-4 text-white/80">{run.runName}</div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60 font-mono">
-              #{run.shortId} • {run.id}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/predictions">
-              ← Back
-            </Link>
-          </div>
-        </div>
-
-        <div className="ui-divider mt-4" />
+        <NavBar
+          title={run.shortId ?? "Run"}
+          subtitle={run.runName}
+          backHref="/predictions"
+          backLabel="Predictions"
+        />
 
         <div className="mt-4 ui-panel p-4">
           <div className="text-[13px] font-semibold text-white/90">Run Details</div>
@@ -254,7 +245,7 @@ export function PredictionDetailClient({ runId }: { runId: string }) {
                             ? `${(p.confidence * 100).toFixed(0)}%`
                             : "—"}
                         </td>
-                        <td className={`py-2 pr-4 text-right ${p.score != null && p.score >= 0.5 ? "text-green-400" : p.score != null ? "text-red-400" : "text-white/70"}`}>
+                        <td className={`py-2 pr-4 text-right ${p.score != null && p.score >= 0.5 ? "text-[color:var(--success)]" : p.score != null ? "text-[color:var(--danger)]" : "text-white/70"}`}>
                           {p.score != null
                             ? `${(p.score * 100).toFixed(0)}%`
                             : "—"}

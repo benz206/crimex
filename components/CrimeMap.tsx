@@ -12,11 +12,9 @@ import maplibregl, {
 import {
   Car,
   CheckCircle2,
-  CircleUserRound,
   CircleHelp,
   DoorOpen,
   Home,
-  RotateCcw,
   ShieldAlert,
   ShoppingBag,
 } from "lucide-react";
@@ -40,6 +38,7 @@ import { PredictionsPanel, type PredictionData } from "@/components/PredictionsP
 import { HeatmapSettingsPanel } from "@/components/HeatmapSettingsPanel";
 import { IncidentPopupContent } from "@/components/IncidentPopupContent";
 import { SearchPopupContent } from "@/components/SearchPopupContent";
+import { MapOverlayControls } from "@/components/MapOverlayControls";
 
 type Props = {
   styleId?: MapTilerStyleId;
@@ -71,11 +70,6 @@ const isFederalStats = (desc?: string) => {
   const d = (desc ?? "").trim().toUpperCase();
   return d.startsWith("FEDERAL STATS");
 };
-
-const INCIDENT_ABBREVIATION_LEGEND: Array<{ abbr: string; meaning: string }> = [
-  { abbr: "MVC", meaning: "Motor Vehicle Collision" },
-  { abbr: "PI", meaning: "Personal Injury" },
-];
 
 const decorateIncidents = (
   fc: IncidentFeatureCollection,
@@ -114,13 +108,13 @@ const categoryIconId: Record<string, string> = {
 };
 
 const iconById: Record<string, LucideIcon> = {
-  [categoryIconId["Break & Enter"]]: DoorOpen,
-  [categoryIconId["Violence"]]: ShieldAlert,
-  [categoryIconId["Theft"]]: ShoppingBag,
-  [categoryIconId["Traffic"]]: Car,
-  [categoryIconId["Impaired/Checks"]]: CheckCircle2,
-  [categoryIconId["Property"]]: Home,
-  [categoryIconId["Other"]]: CircleHelp,
+  [categoryIconId["Break & Enter"]!]: DoorOpen,
+  [categoryIconId["Violence"]!]: ShieldAlert,
+  [categoryIconId["Theft"]!]: ShoppingBag,
+  [categoryIconId["Traffic"]!]: Car,
+  [categoryIconId["Impaired/Checks"]!]: CheckCircle2,
+  [categoryIconId["Property"]!]: Home,
+  [categoryIconId["Other"]!]: CircleHelp,
 };
 
 async function loadSvgAsImage(svg: string): Promise<HTMLImageElement> {
@@ -138,6 +132,7 @@ async function ensureLucideImages(map: maplibregl.Map) {
   for (const id of Object.keys(iconById)) {
     if (map.hasImage(id)) continue;
     const Icon = iconById[id];
+    if (!Icon) continue;
     const svg = renderToStaticMarkup(
       <Icon size={20} strokeWidth={2.25} color="rgba(255,255,255,0.92)" />,
     );
@@ -297,6 +292,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     }>
   >([]);
   const [selectedPredictionRunId, setSelectedPredictionRunId] = useState<string | null>(null);
+  const selectedPredictionRunIdRef = useRef<string | null>(null);
   const [selectedPredictionId, setSelectedPredictionId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"incidents" | "predictions">("incidents");
   const [groupingEnabled, setGroupingEnabled] = useState(true);
@@ -337,6 +333,10 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   useEffect(() => {
     heatmapSettingsRef.current = heatmapSettings;
   }, [heatmapSettings]);
+
+  useEffect(() => {
+    selectedPredictionRunIdRef.current = selectedPredictionRunId;
+  }, [selectedPredictionRunId]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -805,7 +805,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           const eased = 1 - Math.pow(1 - t, 3);
           const radius = 5 + eased * 33;
           const opacity = (1 - eased) * 0.38;
-          if (map.getLayer("points-glow")) {
+          if (map.getLayer("points-glow") && map.getLayoutProperty("points-glow", "visibility") !== "none") {
             map.setPaintProperty("points-glow", "circle-radius", radius);
             map.setPaintProperty("points-glow", "circle-opacity", opacity);
             map.setPaintProperty(
@@ -814,7 +814,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               0.9 + eased * 0.7,
             );
           }
-          if (map.getLayer("points-raw-glow")) {
+          if (map.getLayer("points-raw-glow") && map.getLayoutProperty("points-raw-glow", "visibility") !== "none") {
             map.setPaintProperty("points-raw-glow", "circle-radius", radius);
             map.setPaintProperty("points-raw-glow", "circle-opacity", opacity);
             map.setPaintProperty(
@@ -1059,11 +1059,12 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         setPredictionLoading(false);
         return;
       }
+      const currentRunId = selectedPredictionRunIdRef.current;
       const targetRunId =
-        selectedPredictionRunId && runs.some((r) => r.id === selectedPredictionRunId)
-          ? selectedPredictionRunId
+        currentRunId && runs.some((r) => r.id === currentRunId)
+          ? currentRunId
           : runs[0]!.id;
-      if (targetRunId !== selectedPredictionRunId) setSelectedPredictionRunId(targetRunId);
+      if (targetRunId !== currentRunId) setSelectedPredictionRunId(targetRunId);
       const targetRun = runs.find((r) => r.id === targetRunId) ?? runs[0]!;
       const detailRes = await fetch(`/api/predictions/${targetRun.id}`, { cache: "no-store", signal });
       const detail = await detailRes.json();
@@ -1106,12 +1107,18 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     } finally {
       setPredictionLoading(false);
     }
-  }, [selectedPredictionRunId]);
+  }, []);
 
   useEffect(() => {
     const ac = new AbortController();
     void loadPredictions(ac.signal);
     return () => ac.abort();
+  }, [loadPredictions]);
+
+  const handleRunId = useCallback((id: string) => {
+    setSelectedPredictionRunId(id);
+    selectedPredictionRunIdRef.current = id;
+    void loadPredictions();
   }, [loadPredictions]);
 
   const flyToPrediction = useCallback(
@@ -1171,6 +1178,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         layers: ["clusters"],
       });
       const f = features?.[0];
+      if (!f) return;
       const clusterId = f?.properties?.cluster_id;
       if (clusterId == null) return;
 
@@ -1277,17 +1285,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
     };
   }, [filters]);
 
-  if (!maptilerKey) {
-    return (
-      <div className="relative h-full w-full bg-black">
-        <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/80">
-          Set NEXT_PUBLIC_MAPTILER_KEY in .env.local
-        </div>
-      </div>
-    );
-  }
-
-  const flyToIncident = (f: IncidentFeature) => {
+  const flyToIncident = useCallback((f: IncidentFeature) => {
     const m = mapRef.current;
     if (!m) return;
     const c = f.geometry.coordinates;
@@ -1304,7 +1302,17 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       }).setLngLat(center),
       <IncidentPopupContent p={f.properties} useIcons={useIcons} />,
     ).addTo(m);
-  };
+  }, [useIcons]);
+
+  if (!maptilerKey) {
+    return (
+      <div className="relative h-full w-full bg-black">
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/80">
+          Set NEXT_PUBLIC_MAPTILER_KEY in .env.local
+        </div>
+      </div>
+    );
+  }
 
   const onSearchPick = (center: [number, number], label: string) => {
     const m = mapRef.current;
@@ -1394,7 +1402,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               loading={predictionLoading}
               runs={predictionRuns}
               selectedRunId={selectedPredictionRunId}
-              onRunId={setSelectedPredictionRunId}
+              onRunId={handleRunId}
               onPick={flyToPrediction}
               onRefresh={() => void loadPredictions()}
               selectedPredictionId={selectedPredictionId}
@@ -1493,7 +1501,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
                   loading={predictionLoading}
                   runs={predictionRuns}
                   selectedRunId={selectedPredictionRunId}
-                  onRunId={setSelectedPredictionRunId}
+                  onRunId={handleRunId}
                   onPick={(p) => {
                     flyToPrediction(p);
                     setMobilePanel(null);
@@ -1526,61 +1534,21 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         onClose={() => setHeatmapSettingsOpen(false)}
       />
 
-      <div className="pointer-events-none fixed right-3 bottom-3 z-40 hidden md:block">
-        <div className="pointer-events-auto flex items-center gap-2">
-          <button
-            type="button"
-            className="ui-btn inline-flex h-9 w-9 items-center justify-center p-0"
-            aria-label="Reset filters"
-            onClick={() => setFilterResetConfirmOpen(true)}
-          >
-            <RotateCcw size={14} />
-          </button>
-          <Link
-            href="/profile"
-            className="ui-btn inline-flex h-9 w-9 items-center justify-center p-0"
-            aria-label="Profile"
-          >
-            <CircleUserRound size={14} />
-          </Link>
-        </div>
-        {filterResetConfirmOpen && (
-          <div className="ui-panel absolute right-0 bottom-12 w-[280px] p-3">
-            <div className="text-[13px] font-semibold text-white/90">
-              Reset filters?
-            </div>
-            <div className="mt-1 text-[11px] leading-4 text-white/60">
-              This resets map filters to the default 1 month range.
-            </div>
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                className="ui-btn h-8 px-2.5 text-[11px]"
-                onClick={() => setFilterResetConfirmOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="ui-btn-primary h-8 px-2.5 text-[11px]"
-                onClick={() => {
-                  const endMs = Date.now();
-                  const startMs = endMs - 30 * 24 * 60 * 60 * 1000;
-                  setFilters({
-                    startMs,
-                    endMs,
-                    timePreset: "1m",
-                    hideRoadTests: true,
-                  });
-                  setFilterResetConfirmOpen(false);
-                }}
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <MapOverlayControls
+        activeHelpOpen={activeHelpOpen}
+        setActiveHelpOpen={setActiveHelpOpen}
+        predictionsEnabled={predictionsEnabled}
+        setPredictionsEnabled={setPredictionsEnabled}
+        heatmapEnabled={heatmapEnabled}
+        groupingEnabled={groupingEnabled}
+        setGroupingEnabled={setGroupingEnabled}
+        useIcons={useIcons}
+        setUseIcons={setUseIcons}
+        filters={filters}
+        setFilters={setFilters}
+        filterResetConfirmOpen={filterResetConfirmOpen}
+        setFilterResetConfirmOpen={setFilterResetConfirmOpen}
+      />
 
       {isLoading && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-end justify-center">
@@ -1591,229 +1559,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         </div>
       )}
 
-      <div className="pointer-events-none fixed left-2 bottom-2 z-40 sm:left-3 sm:bottom-3">
-        <div
-          className="ui-panel pointer-events-auto inline-flex max-w-[calc(100vw-1rem)] flex-col gap-1.5 px-2 py-1.5 cursor-pointer sm:max-w-[440px] sm:gap-2 sm:px-3 sm:py-2"
-          role="button"
-          tabIndex={0}
-          onClick={() => setActiveHelpOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") setActiveHelpOpen(true);
-          }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="hidden text-[11px] font-semibold uppercase tracking-wide text-white/60 sm:block">
-              Active
-            </div>
-            <button
-              type="button"
-              className="rounded-md p-1 text-white/65 hover:bg-white/10 hover:text-white/85"
-              aria-label="What do these toggles do?"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveHelpOpen(true);
-              }}
-            >
-              <CircleHelp size={16} />
-            </button>
-          </div>
-          <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto">
-            <button
-              type="button"
-              className={
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
-                (predictionsEnabled
-                  ? "bg-[#22c55e]/20 text-[#22c55e] hover:bg-[#22c55e]/25"
-                  : "bg-white/5 text-white/55 hover:bg-white/10")
-              }
-              aria-pressed={predictionsEnabled}
-              onClick={(e) => {
-                e.stopPropagation();
-                setPredictionsEnabled((v) => !v);
-              }}
-            >
-              <span
-                className={
-                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
-                  (predictionsEnabled
-                    ? "border-[#22c55e]/50 text-[#22c55e]"
-                    : "border-white/15 text-white/40")
-                }
-              >
-                {predictionsEnabled ? "✓" : ""}
-              </span>
-              <span>Predictions</span>
-            </button>
-
-            <button
-              type="button"
-              className={
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
-                (heatmapEnabled
-                  ? "cursor-not-allowed bg-white/5 text-white/35"
-                  : groupingEnabled
-                    ? "bg-white/10 text-white/90 hover:bg-white/12"
-                    : "bg-white/5 text-white/55 hover:bg-white/10")
-              }
-              disabled={heatmapEnabled}
-              aria-pressed={groupingEnabled}
-              onClick={(e) => {
-                e.stopPropagation();
-                setGroupingEnabled((v) => !v);
-              }}
-            >
-              <span
-                className={
-                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
-                  (groupingEnabled
-                    ? "border-white/35 text-white/85"
-                    : "border-white/15 text-white/40")
-                }
-              >
-                {groupingEnabled ? "✓" : ""}
-              </span>
-              <span>Grouping</span>
-            </button>
-
-            <button
-              type="button"
-              className={
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
-                (useIcons
-                  ? "bg-white/10 text-white/90 hover:bg-white/12"
-                  : "bg-white/5 text-white/55 hover:bg-white/10")
-              }
-              aria-pressed={useIcons}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUseIcons((v) => !v);
-              }}
-            >
-              <span
-                className={
-                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
-                  (useIcons
-                    ? "border-white/35 text-white/85"
-                    : "border-white/15 text-white/40")
-                }
-              >
-                {useIcons ? "✓" : ""}
-              </span>
-              <span>Icons</span>
-            </button>
-
-            <button
-              type="button"
-              className={
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ring-1 ring-white/10 cursor-pointer sm:gap-2 sm:px-3 sm:text-[12px] " +
-                (filters.hideRoadTests
-                  ? "bg-white/10 text-white/90 hover:bg-white/12"
-                  : "bg-white/5 text-white/55 hover:bg-white/10")
-              }
-              aria-pressed={Boolean(filters.hideRoadTests)}
-              onClick={(e) => {
-                e.stopPropagation();
-                setFilters((f) => ({ ...f, hideRoadTests: !f.hideRoadTests }));
-              }}
-            >
-              <span
-                className={
-                  "inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[10px] sm:h-4 sm:w-4 sm:text-[11px] " +
-                  (filters.hideRoadTests
-                    ? "border-white/35 text-white/85"
-                    : "border-white/15 text-white/40")
-                }
-              >
-                {filters.hideRoadTests ? "✓" : ""}
-              </span>
-              <span>Hide Tests/Stats</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {activeHelpOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 md:p-6"
-          onClick={() => setActiveHelpOpen(false)}
-        >
-          <div
-            className="ui-panel w-full max-w-[620px] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-white/90">
-                  Active Settings
-                </div>
-                <div className="mt-1 text-[11px] leading-4 text-white/60">
-                  Quick toggles that affect how incidents are shown.
-                </div>
-              </div>
-              <button
-                type="button"
-                className="ui-btn h-9 px-3 text-[13px]"
-                onClick={() => setActiveHelpOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="ui-divider mx-4" />
-            <div className="p-4">
-              <div className="flex flex-col gap-3">
-                <div className="ui-card">
-                  <div className="text-[13px] font-semibold text-white/90">
-                    Grouping
-                  </div>
-                  <div className="mt-1 text-[11px] leading-4 text-white/60">
-                    Combines nearby incidents into clusters when zoomed out.
-                    Grouping is disabled while Heatmap is enabled.
-                  </div>
-                </div>
-
-                <div className="ui-card">
-                  <div className="text-[13px] font-semibold text-white/90">
-                    Icons
-                  </div>
-                  <div className="mt-1 text-[11px] leading-4 text-white/60">
-                    Shows an icon in labels/popups to visually indicate the
-                    incident category.
-                  </div>
-                </div>
-
-                <div className="ui-card">
-                  <div className="text-[13px] font-semibold text-white/90">
-                    Hide Tests/Stats
-                  </div>
-                  <div className="mt-1 text-[11px] leading-4 text-white/60">
-                    Removes “Roadside Test” and “Federal Stats” entries from the
-                    dataset.
-                  </div>
-                </div>
-
-                <div className="ui-card">
-                  <div className="text-[13px] font-semibold text-white/90">
-                    Legend
-                  </div>
-                  <div className="mt-1 text-[11px] leading-4 text-white/60">
-                    Common abbreviations you may see in incident names:
-                  </div>
-                  <div className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-[11px] leading-4 text-white/70">
-                    {INCIDENT_ABBREVIATION_LEGEND.map((x) => (
-                      <div key={x.abbr} className="contents">
-                        <div className="font-semibold text-white/85">
-                          {x.abbr}
-                        </div>
-                        <div>{x.meaning}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );

@@ -1,9 +1,9 @@
 "use client";
 
 import { getSupabaseClient } from "@/lib/supabase";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { NavBar } from "@/components/NavBar";
 
 export function LoginClient({ redirectTo }: { redirectTo?: string }) {
   const router = useRouter();
@@ -48,21 +48,7 @@ export function LoginClient({ redirectTo }: { redirectTo?: string }) {
     <div className="min-h-dvh w-full bg-black">
       <div className="mx-auto flex min-h-dvh w-full max-w-[520px] items-center justify-center p-3">
         <div className="ui-panel w-full p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[20px] font-semibold text-white/95">
-                Account
-              </div>
-              <div className="mt-1 text-[11px] leading-4 text-white/60">
-                Continue with Google to view your profile.
-              </div>
-            </div>
-            <Link className="ui-btn h-9 px-3 text-[13px]" href="/">
-              Back
-            </Link>
-          </div>
-
-          <div className="ui-divider mt-4" />
+          <NavBar title="Sign in" />
 
           {!sb ? (
             <div className="mt-4 ui-card">
