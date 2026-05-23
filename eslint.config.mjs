@@ -6,6 +6,11 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    settings: {
+      react: {
+        version: "19",
+      },
+    },
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -24,6 +29,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Ignore Claude agent worktrees (they have their own node_modules with
+    // incompatible @typescript-eslint versions that break ESLint 10 loading).
+    ".claude/**",
   ]),
 ]);
 

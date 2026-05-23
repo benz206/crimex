@@ -24,7 +24,7 @@ Label PRs before merging so the GitHub Release groups changes correctly:
 
 | Label           | Release Notes section |
 |-----------------|-----------------------|
-| `feature`       | Features              |
+| `enhancement`   | Features              |
 | `bug`           | Fixes                 |
 | `performance`   | Performance           |
 | `documentation` | Documentation         |
