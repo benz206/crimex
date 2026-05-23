@@ -159,10 +159,9 @@ export class SupabaseMarketRepo implements MarketRepo {
     };
   }
 
-  async resolve(marketId: string, resolvedOutcome: Outcome, resolvedBy: string) {
-    // TODO: pass resolver identity once the RPC is extended; currently the RPC
-    // uses auth.uid() directly to record resolved_by in the resolutions table.
-    void resolvedBy;
+  async resolve(marketId: string, resolvedOutcome: Outcome, _resolvedBy: string) {
+    // TODO: add p_resolved_by param to resolve_market_v1 RPC and pass _resolvedBy here;
+    // currently the RPC uses auth.uid() directly to record resolved_by.
     const { error } = await this.sb.rpc("resolve_market_v1", {
       p_market_id: marketId,
       p_resolved_outcome: resolvedOutcome,
@@ -170,10 +169,9 @@ export class SupabaseMarketRepo implements MarketRepo {
     if (error) throw mapRpcError(error);
   }
 
-  async resolveParimutuel(marketId: string, resolvedOutcome: Outcome, resolvedBy: string) {
-    // TODO: pass resolver identity once the RPC is extended; currently the RPC
-    // uses auth.uid() directly to record resolved_by in the resolutions table.
-    void resolvedBy;
+  async resolveParimutuel(marketId: string, resolvedOutcome: Outcome, _resolvedBy: string) {
+    // TODO: add p_resolved_by param to resolve_parimutuel_market_v1 RPC and pass _resolvedBy here;
+    // currently the RPC uses auth.uid() directly to record resolved_by.
     const { error } = await this.sb.rpc("resolve_parimutuel_market_v1", {
       p_market_id: marketId,
       p_resolved_outcome: resolvedOutcome,

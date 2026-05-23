@@ -25,7 +25,13 @@ export async function GET(
     if (tradesResult.error) throw tradesResult.error;
     if (betsResult.error) throw betsResult.error;
 
-    return Response.json({ trades: tradesResult.data ?? [], bets: betsResult.data ?? [] });
+    const trades = (tradesResult.data ?? []).map((t) => ({
+      ...t,
+      maker_user_id: null,
+      taker_user_id: null,
+    }));
+    const bets = (betsResult.data ?? []).map((b) => ({ ...b, user_id: null }));
+    return Response.json({ trades, bets });
   } catch (e) {
     return httpErrorResponse(e);
   }

@@ -27,7 +27,7 @@ export function requireBearerToken(req: Request): string {
 
 export function requireCronSecret(req: Request): void {
   const secret = process.env.PREDICTIONS_CRON_SECRET;
-  if (!secret) throw new AppError("VALIDATION", "Cron secret not configured");
+  if (!secret) throw new AppError("INTERNAL", "Cron secret not configured");
   const provided = requireBearerToken(req);
   const secretBuf = Buffer.from(secret);
   const providedBuf = Buffer.from(provided);
