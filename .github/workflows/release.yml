@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Skip when the head commit is itself a release commit — prevents the
+    # version-bump commit pushed below from triggering another release.
+    # ([skip ci] in the commit message is the primary guard; this is belt-and-suspenders.)
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute CalVer version
+        id: calver
+        run: |
+          YEAR=$(date -u +%Y)
+          MONTH=$(date -u +%m)
+
+          # Find the highest patch number for tags matching v${YEAR}.${MONTH}.*
+          PATCH=0
+          EXISTING=$(git tag -l "v${YEAR}.${MONTH}.*" | sed "s/v${YEAR}.${MONTH}.//" | sort -n | tail -1)
+          if [[ -n "$EXISTING" ]]; then
+            PATCH=$(( EXISTING + 1 ))
+          fi
+
+          VERSION="${YEAR}.${MONTH}.${PATCH}"
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Computed version: $TAG"
+
+      - name: Bump package.json version
+        run: |
+          VERSION="${{ steps.calver.outputs.version }}"
+          jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+      - name: Commit and push version bump
+        run: |
+          VERSION="${{ steps.calver.outputs.version }}"
+          TAG="${{ steps.calver.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore(release): ${TAG} [skip ci]"
+          git push origin main
+
+      - name: Create and push annotated tag
+        run: |
+          TAG="${{ steps.calver.outputs.tag }}"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.calver.outputs.version }}"
+          TAG="${{ steps.calver.outputs.tag }}"
+          gh release create "$TAG" --generate-notes --title "v${VERSION}"
