@@ -1,6 +1,7 @@
-import { createAuthedSupabaseClient } from "@/lib/markets/infrastructure/supabaseAuthedClient";
 import { SupabaseMarketRepo } from "@/lib/markets/infrastructure/supabaseRepos";
-import { httpErrorResponse, requireBearerToken } from "@/lib/markets/presentation/http";
+import { httpErrorResponse } from "@/lib/markets/presentation/http";
+import { requireCronSecret } from "@/lib/predictions/presentation/http";
+import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { arcgisCrimeLayer, buildIncidentWhere } from "@/lib/arcgis";
 
 function extractThreshold(title: string): number | null {
@@ -50,8 +51,8 @@ export async function POST(req: Request) {
     if (!(enabled === "1" || enabled === "true")) {
       return Response.json({ error: "NOT_FOUND", message: "Not found" }, { status: 404 });
     }
-    const token = requireBearerToken(req);
-    const sb = createAuthedSupabaseClient(token);
+    requireCronSecret(req);
+    const sb = getSupabaseAdminClient();
     const marketRepo = new SupabaseMarketRepo(sb);
     const body = (await req.json()) as unknown;
     const b = body as { [k: string]: unknown } | null;
