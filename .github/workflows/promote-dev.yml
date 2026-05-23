@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,6 +22,7 @@ jobs:
 
       - name: Squash-merge dev into main and reset dev
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TITLE: ${{ inputs.title }}
         run: |
           set -euo pipefail
@@ -34,9 +36,13 @@ jobs:
             exit 0
           fi
 
-          git merge --squash origin/dev
-          git commit -m "$TITLE"
-          git push origin main
+          pr_url=$(gh pr create --base main --head dev \
+            --title "$TITLE" \
+            --body "Automated promotion of dev to main.")
+          pr_number=$(basename "$pr_url")
+
+          gh pr merge "$pr_number" --squash --delete-branch=false
 
           # Reset dev to match the new main so dev never trails behind.
-          git push --force-with-lease origin main:dev
+          git fetch origin main
+          git push --force-with-lease origin origin/main:refs/heads/dev
