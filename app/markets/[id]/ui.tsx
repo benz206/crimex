@@ -61,8 +61,8 @@ type Trade = {
   outcome: "YES" | "NO";
   price_cents: number;
   qty: number;
-  maker_user_id: string;
-  taker_user_id: string;
+  maker_user_id: string | null;
+  taker_user_id: string | null;
   created_at: string;
 };
 
@@ -70,11 +70,11 @@ type Bet = {
   id: string;
   outcome: "YES" | "NO";
   amount_cents: number;
-  user_id: string;
+  user_id: string | null;
   created_at: string;
 };
 
-function shortenUserId(id: string) {
+function shortenUserId(id: string | null) {
   if (!id) return "anon";
   return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }

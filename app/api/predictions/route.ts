@@ -1,6 +1,5 @@
 import { listRuns } from "@/lib/predictions/application/usecases/listRuns";
 import { runPrediction } from "@/lib/predictions/application/usecases/runPrediction";
-import { checkAndConsolidate } from "@/lib/predictions/application/usecases/checkAndConsolidate";
 import { getConsolidatedStats } from "@/lib/predictions/application/usecases/getConsolidatedStats";
 import { SupabasePredictionRepo } from "@/lib/predictions/infrastructure/supabaseRepos";
 import { ArcGISIncidentData } from "@/lib/predictions/infrastructure/incidentData";
@@ -87,40 +86,10 @@ export async function POST(req: Request) {
         typeof body.checkMode === "string" && (body.checkMode === "new_only" || body.checkMode === "all")
           ? body.checkMode
           : "all";
+      // Job is created in pending state; /api/predictions/cron will pick it up.
+      // Avoid fire-and-forget here: the job touches external APIs and can outlive
+      // the serverless function, leaving the job stuck in pending on early termination.
       const checkJob = await predictionRepo.createCheckJob({ createdBy: null });
-      void (async () => {
-        try {
-          await checkAndConsolidate(
-            {
-              predictionRepo,
-              incidentData,
-            },
-            {
-              mode: checkMode,
-              onProgress: async (p) => {
-                await predictionRepo.updateCheckJobProgress(checkJob.id, {
-                  phase: p.phase,
-                  expiredRunCount: p.expiredRunCount,
-                  checked: p.checked,
-                  consolidated: p.consolidated,
-                  rechecked: p.rechecked,
-                  reconsolidated: p.reconsolidated,
-                  totalConsolidated: p.consolidated + p.reconsolidated,
-                  activeRun: p.activeRun,
-                  lastConsolidatedRun: p.lastConsolidatedRun,
-                });
-              },
-            },
-          );
-          await predictionRepo.completeCheckJob(checkJob.id, { status: "completed" });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Check and consolidate failed";
-          await predictionRepo.completeCheckJob(checkJob.id, {
-            status: "failed",
-            errorMessage: message,
-          });
-        }
-      })();
       return Response.json(
         {
           checkJob,
