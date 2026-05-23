@@ -1411,116 +1411,102 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         </div>
       </div>
 
-      <div className="fixed right-3 bottom-3 z-20 flex flex-col gap-2 md:hidden">
-        <Link className="ui-btn h-10 px-4 text-[13px]" href="/markets">
+      <div className="fixed bottom-0 left-0 right-0 z-20 flex items-center gap-2 border-t border-white/10 bg-neutral-900/95 px-3 py-2 md:hidden">
+        <Link className="ui-btn h-9 px-3 text-[13px]" href="/markets">
           Markets
         </Link>
         <button
           type="button"
-          className={mobilePanel === "filters" ? "ui-btn-primary" : "ui-btn"}
+          className={`flex-1 ${mobilePanel === "filters" ? "ui-btn-primary" : "ui-btn"} h-9 text-[13px]`}
           onClick={() =>
             setMobilePanel((p) => (p === "filters" ? null : "filters"))
           }
         >
-          {mobilePanel === "filters" ? "Close Filters" : "Filters"}
+          Filters
         </button>
         <button
           type="button"
-          className={mobilePanel === "incidents" ? "ui-btn-primary" : "ui-btn"}
+          className={`flex-1 ${mobilePanel === "incidents" ? "ui-btn-primary" : "ui-btn"} h-9 text-[13px]`}
           onClick={() =>
             setMobilePanel((p) => (p === "incidents" ? null : "incidents"))
           }
         >
-          {mobilePanel === "incidents"
-            ? "Close Incidents"
-            : `Incidents (${incidents.features.length})`}
+          {`Incidents (${incidents.features.length})`}
         </button>
         <button
           type="button"
-          className={
-            mobilePanel === "predictions"
-              ? "ui-btn-primary"
-              : "ui-btn"
-          }
+          className={`flex-1 ${mobilePanel === "predictions" ? "ui-btn-primary" : "ui-btn"} h-9 text-[13px]`}
           onClick={() =>
             setMobilePanel((p) => (p === "predictions" ? null : "predictions"))
           }
         >
-          {mobilePanel === "predictions" ? "Close Predictions" : "Predictions"}
+          Predictions
         </button>
       </div>
 
       {mobilePanel !== null && (
-        <div
-          className="fixed inset-0 z-30 bg-black/55 md:hidden"
-          onClick={() => setMobilePanel(null)}
-        >
-          <div
-            className="ui-panel absolute top-3 right-3 bottom-3 left-3 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
-              <div className="text-sm font-semibold text-white/90">
-                {mobilePanel === "filters"
-                  ? "Filters"
-                  : mobilePanel === "predictions"
-                    ? "Predictions"
-                    : "Incidents"}
-              </div>
-              <button
-                type="button"
-                className="ui-btn h-9 px-3 text-[13px]"
-                onClick={() => setMobilePanel(null)}
-              >
-                Close
-              </button>
+        <div className="fixed inset-0 z-50 flex flex-col bg-neutral-900 md:hidden">
+          <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 shrink-0">
+            <div className="text-sm font-semibold text-white/90">
+              {mobilePanel === "filters"
+                ? "Filters"
+                : mobilePanel === "predictions"
+                  ? "Predictions"
+                  : "Incidents"}
             </div>
-            <div className="ui-divider mx-4" />
-            <div className="h-[calc(100%-64px)] overflow-auto">
-              {mobilePanel === "filters" ? (
-                <div className="p-4">
-                  <Filters
-                    styleId={currentStyleId}
-                    onStyleId={(v) => setCurrentStyleId(v)}
-                    heatmapEnabled={heatmapEnabled}
-                    onHeatmapSettingsOpen={() => {
-                      setHeatmapSettingsOpen(true);
-                      setMobilePanel(null);
-                    }}
-                    filters={filters}
-                    onFilters={setFilters}
-                    onSearchPick={(center, label) => {
-                      onSearchPick(center, label);
-                      setMobilePanel(null);
-                    }}
-                  />
-                </div>
-              ) : mobilePanel === "predictions" ? (
-                <PredictionsPanel
-                  data={predictionData}
-                  loading={predictionLoading}
-                  runs={predictionRuns}
-                  selectedRunId={selectedPredictionRunId}
-                  onRunId={handleRunId}
-                  onPick={(p) => {
-                    flyToPrediction(p);
+            <button
+              type="button"
+              className="ui-btn h-9 w-9 text-[16px] leading-none"
+              onClick={() => setMobilePanel(null)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="ui-divider mx-4 shrink-0" />
+          <div className="min-h-0 flex-1 overflow-auto">
+            {mobilePanel === "filters" ? (
+              <div className="p-4">
+                <Filters
+                  styleId={currentStyleId}
+                  onStyleId={(v) => setCurrentStyleId(v)}
+                  heatmapEnabled={heatmapEnabled}
+                  onHeatmapSettingsOpen={() => {
+                    setHeatmapSettingsOpen(true);
                     setMobilePanel(null);
                   }}
-                  onRefresh={() => void loadPredictions()}
-                  selectedPredictionId={selectedPredictionId}
+                  filters={filters}
+                  onFilters={setFilters}
+                  onSearchPick={(center, label) => {
+                    onSearchPick(center, label);
+                    setMobilePanel(null);
+                  }}
                 />
-              ) : (
-                <div className="h-full overflow-hidden">
-                  <Sidebar
-                    items={incidents.features}
-                    onPick={(f) => {
-                      flyToIncident(f);
-                      setMobilePanel(null);
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+              </div>
+            ) : mobilePanel === "predictions" ? (
+              <PredictionsPanel
+                data={predictionData}
+                loading={predictionLoading}
+                runs={predictionRuns}
+                selectedRunId={selectedPredictionRunId}
+                onRunId={handleRunId}
+                onPick={(p) => {
+                  flyToPrediction(p);
+                  setMobilePanel(null);
+                }}
+                onRefresh={() => void loadPredictions()}
+                selectedPredictionId={selectedPredictionId}
+              />
+            ) : (
+              <div className="h-full">
+                <Sidebar
+                  items={incidents.features}
+                  onPick={(f) => {
+                    flyToIncident(f);
+                    setMobilePanel(null);
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

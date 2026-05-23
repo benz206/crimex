@@ -122,7 +122,7 @@ export function Sidebar({ items, onPick }: Props) {
             </div>
           </div>
           <div className="shrink-0 rounded-full mb-auto bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
-            {total}
+            {paged.length} of {total} in view
           </div>
         </div>
 
