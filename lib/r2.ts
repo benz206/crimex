@@ -18,18 +18,34 @@ function getClient(): S3Client {
   return cachedClient;
 }
 
-const snapshotCache = new Map<string, unknown>();   // key: bucket/objectKey
+const LRU_MAX = 50;
+const snapshotCache = new Map<string, unknown>();   // key: bucket/objectKey, bounded LRU
+
+function lruGet(key: string): unknown | undefined {
+  if (!snapshotCache.has(key)) return undefined;
+  const val = snapshotCache.get(key);
+  snapshotCache.delete(key);
+  snapshotCache.set(key, val);
+  return val;
+}
+
+function lruSet(key: string, val: unknown): void {
+  if (snapshotCache.size >= LRU_MAX) {
+    snapshotCache.delete(snapshotCache.keys().next().value!);
+  }
+  snapshotCache.set(key, val);
+}
 
 export async function fetchJsonFromR2(bucket: string, objectKey: string): Promise<unknown> {
   const cacheKey = `${bucket}/${objectKey}`;
-  const cached = snapshotCache.get(cacheKey);
-  if (cached) return cached;
+  const cached = lruGet(cacheKey);
+  if (cached !== undefined) return cached;
   const client = getClient();
   const resp = await client.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }));
   if (!resp.Body) throw new Error(`R2 object ${cacheKey} returned empty body`);
   const text = await resp.Body.transformToString("utf-8");
   const parsed = JSON.parse(text);
-  snapshotCache.set(cacheKey, parsed);
+  lruSet(cacheKey, parsed);
   return parsed;
 }
 

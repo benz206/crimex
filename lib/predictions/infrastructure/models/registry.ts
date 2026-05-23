@@ -1,10 +1,10 @@
 import type { PredictionModelPort } from "../../application/ports";
-import { TrainedModel } from "./trained";
+import { RemoteTrainedModel } from "./remote";
 
 type ModelFactory = () => PredictionModelPort;
 
 const factories: [string, ModelFactory][] = [
-  ["trained-v1", () => new TrainedModel()],
+  ["trained-v1", () => new RemoteTrainedModel()],
 ];
 
 const factoryMap = new Map<string, ModelFactory>(factories);

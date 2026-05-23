@@ -24,9 +24,19 @@ async function handleIngest(req: Request): Promise<Response> {
     });
 
     const supabaseAdmin = getSupabaseAdminClient();
-    let ingested = 0;
     let skipped = 0;
     const errors: string[] = [];
+
+    type IncidentRow = {
+      objectid: number;
+      date_ms: number;
+      city: string;
+      description: string;
+      case_no: string;
+      lng: number;
+      lat: number;
+    };
+    const rows: IncidentRow[] = [];
 
     for (const feature of fc.features) {
       const p = feature.properties;
@@ -47,21 +57,18 @@ async function handleIngest(req: Request): Promise<Response> {
         continue;
       }
 
-      const { error } = await supabaseAdmin.rpc("ingest_incident_v1", {
-        p_objectid: objectid,
-        p_date_ms: dateMs,
-        p_city: city,
-        p_description: description,
-        p_case_no: caseNo,
-        p_lng: lng,
-        p_lat: lat,
-      });
+      rows.push({ objectid, date_ms: dateMs, city, description, case_no: caseNo, lng: lng as number, lat: lat as number });
+    }
 
+    let ingested = 0;
+    if (rows.length > 0) {
+      const { error } = await supabaseAdmin
+        .from("incidents")
+        .upsert(rows, { onConflict: "objectid" });
       if (error) {
-        errors.push(`objectid=${objectid}: ${error.message}`);
-        skipped++;
+        errors.push(error.message);
       } else {
-        ingested++;
+        ingested = rows.length;
       }
     }
 

@@ -10,6 +10,7 @@ type Market = {
   status: string;
   marketType?: "orderbook" | "parimutuel";
   createdBy: string;
+  createdByDisplay?: string;
   description?: string | null;
   category?: string | null;
   openTimeMs?: number | null;
@@ -60,8 +61,8 @@ type Trade = {
   outcome: "YES" | "NO";
   price_cents: number;
   qty: number;
-  maker_user_id: string;
-  taker_user_id: string;
+  maker_user_id: string | null;
+  taker_user_id: string | null;
   created_at: string;
 };
 
@@ -69,11 +70,11 @@ type Bet = {
   id: string;
   outcome: "YES" | "NO";
   amount_cents: number;
-  user_id: string;
+  user_id: string | null;
   created_at: string;
 };
 
-function shortenUserId(id: string) {
+function shortenUserId(id: string | null) {
   if (!id) return "anon";
   return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }
@@ -82,14 +83,20 @@ function formatMoney(cents: number) {
   return `$${(Number(cents) / 100).toFixed(2)}`;
 }
 
-export function MarketClient({ marketId }: { marketId: string }) {
+export function MarketClient({
+  marketId,
+  initialMarket = null,
+}: {
+  marketId: string;
+  initialMarket?: Market | null;
+}) {
   const token = useAccessToken();
   const authHeaders = useMemo<Record<string, string> | undefined>(
     () => (token ? { Authorization: `Bearer ${token}` } : undefined),
     [token],
   );
 
-  const [market, setMarket] = useState<Market | null>(null);
+  const [market, setMarket] = useState<Market | null>(initialMarket);
   const [top, setTop] = useState<Top | null>(null);
   const [pool, setPool] = useState<Pool | null>(null);
   const [wallet, setWallet] = useState<{ balanceCents: number } | null>(null);
@@ -101,7 +108,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
     bets: [],
   });
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialMarket === null);
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [outcome, setOutcome] = useState<"YES" | "NO">("YES");
@@ -125,7 +132,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
           setMsg(j.message ?? "Failed to load market.");
           return;
         }
-        setMarket(j.market);
+        setMarket((prev) => ({ ...j.market, createdByDisplay: prev?.createdByDisplay ?? j.market.createdByDisplay }));
         setTop(j.top ?? null);
         setPool(j.pool ?? null);
       });
@@ -335,7 +342,7 @@ export function MarketClient({ marketId }: { marketId: string }) {
               </div>
               <div className="ui-card text-[12px] text-white/80">
                 <div className="text-[11px] text-white/60">Created by</div>
-                <div className="mt-1 break-all font-mono">{market?.createdBy ?? "—"}</div>
+                <div className="mt-1">{market?.createdByDisplay ?? (market ? "Unknown" : "—")}</div>
               </div>
               <div className="ui-card text-[12px] text-white/80">
                 <div className="text-[11px] text-white/60">Open</div>
