@@ -179,62 +179,65 @@ export function MarketsClient() {
 
           <div className="ui-panel p-4">
             <div className="text-[13px] font-semibold text-white/90">Create</div>
-            <div className="mt-3 grid grid-cols-1 gap-2">
-              <input
-                className="ui-input"
-                placeholder="Market title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={!token}
-              />
-              <input
-                className="ui-input"
-                placeholder="Description (optional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={!token}
-              />
-              <input
-                className="ui-input"
-                placeholder="Category (optional)"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                disabled={!token}
-              />
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <input
-                  className="ui-input"
-                  type="datetime-local"
-                  value={openTime}
-                  onChange={(e) => setOpenTime(e.target.value)}
-                  disabled={!token}
-                />
-                <input
-                  className="ui-input"
-                  type="datetime-local"
-                  value={closeTime}
-                  onChange={(e) => setCloseTime(e.target.value)}
-                  disabled={!token}
-                />
+            {!token ? (
+              <div className="mt-3 ui-card text-[12px] text-white/70">
+                <Link href="/login" className="text-white/90 underline underline-offset-2">
+                  Sign in
+                </Link>{" "}
+                to create a market.
               </div>
-              <select
-                className="ui-select"
-                value={marketType}
-                onChange={(e) => setMarketType(e.target.value as "orderbook" | "parimutuel")}
-                disabled={!token}
-              >
-                <option value="orderbook">Orderbook</option>
-                <option value="parimutuel">Parimutuel</option>
-              </select>
-              <button
-                type="button"
-                className="ui-btn-primary"
-                onClick={() => void create()}
-                disabled={!token || !title.trim()}
-              >
-                Create market
-              </button>
-            </div>
+            ) : (
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                <input
+                  className="ui-input"
+                  placeholder="Market title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <input
+                  className="ui-input"
+                  placeholder="Description (optional)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+                <input
+                  className="ui-input"
+                  placeholder="Category (optional)"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <input
+                    className="ui-input"
+                    type="datetime-local"
+                    value={openTime}
+                    onChange={(e) => setOpenTime(e.target.value)}
+                  />
+                  <input
+                    className="ui-input"
+                    type="datetime-local"
+                    value={closeTime}
+                    onChange={(e) => setCloseTime(e.target.value)}
+                  />
+                </div>
+                <select
+                  className="ui-select"
+                  value={marketType}
+                  onChange={(e) => setMarketType(e.target.value as "orderbook" | "parimutuel")}
+                >
+                  <option value="orderbook">Orderbook</option>
+                  <option value="parimutuel">Parimutuel</option>
+                </select>
+                <button
+                  type="button"
+                  className="ui-btn-primary"
+                  onClick={() => void create()}
+                  disabled={!title.trim()}
+                >
+                  Create market
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
