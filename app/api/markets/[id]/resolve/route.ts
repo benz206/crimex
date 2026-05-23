@@ -2,6 +2,7 @@ import { resolveMarket } from "@/lib/markets/application/usecases/resolveMarket"
 import { createAuthedSupabaseClient } from "@/lib/markets/infrastructure/supabaseAuthedClient";
 import { SupabaseMarketRepo } from "@/lib/markets/infrastructure/supabaseRepos";
 import { httpErrorResponse, requireBearerToken } from "@/lib/markets/presentation/http";
+import { assertAdmin } from "@/lib/markets/presentation/adminAuth";
 import { getServiceRoleServerClient } from "@/lib/supabase";
 
 export async function POST(
@@ -15,6 +16,7 @@ export async function POST(
     if (userErr || !userData.user) {
       return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
+    assertAdmin(userData.user.email);
     const sb = createAuthedSupabaseClient(token);
     const marketRepo = new SupabaseMarketRepo(sb);
     const body = (await req.json()) as unknown;
