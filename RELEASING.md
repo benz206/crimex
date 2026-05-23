@@ -2,15 +2,16 @@
 
 ## Flow
 
-1. Open a PR into `dev`. CI runs automatically (`ci.yml`) — typecheck and build must pass.
+1. Open a PR into `dev`. CI runs automatically (`ci.yml`) — lint, typecheck, and build must pass.
 2. Merge the PR into `dev`.
-3. When ready to ship, run **"Promote dev to main"** (`Actions → Promote dev to main → Run workflow`). This squash-merges dev into main and resets dev to match main.
-4. The push to `main` triggers `release.yml` automatically, which:
+3. When ready to ship, run **"Promote dev to main"** (`Actions → Promote dev to main → Run workflow`). The workflow:
    - Computes the next CalVer tag.
-   - Bumps `package.json` and commits `chore(release): vYYYY.MM.PATCH [skip ci]` to main.
-   - Creates an annotated git tag and a GitHub Release with auto-generated notes.
-5. Netlify detects the push to `main` and deploys the new build.
-6. If the push touches `supabase/migrations/`, `supabase-migrate.yml` runs and applies migrations.
+   - Bumps `package.json` on `dev` (`chore(release): prepare vYYYY.MM.PATCH`).
+   - Opens a PR from `dev` → `main` and squash-merges it.
+   - Resets `dev` to match the new `main`.
+   - Tags the squash commit on `main` and creates a GitHub Release with auto-generated notes.
+4. Netlify detects the push to `main` and deploys the new build.
+5. If the push touches `supabase/migrations/`, `supabase-migrate.yml` runs and applies migrations.
 
 ## Versioning
 
@@ -34,21 +35,23 @@ Label PRs before merging so the GitHub Release groups changes correctly:
 
 ## Rollback
 
-**Option A — Netlify dashboard:** Trigger a redeploy of the previous successful deploy (no git changes needed, instant).
+**Option A — Netlify dashboard:** Trigger a redeploy of the previous successful deploy. Instant, no git changes.
 
-**Option B — Revert on main:** Revert the squash-merge commit on `main`. Push the revert; `release.yml` will fire and cut a new release that reverts the changes. Supabase migrations will also re-run if migration files were reverted (verify manually that down-migrations are safe).
-
-## Skipping a Release
-
-The release commit (`chore(release):`) is automatically skipped by `release.yml` to prevent an infinite loop — no action needed.
-
-To skip a release for a normal squash-merge (escape hatch): when running the "Promote dev to main" workflow, set the squash commit title to start with `chore(release):`. The guard in `release.yml` will detect it and exit early. Use this sparingly.
+**Option B — Revert via dev:** Revert the relevant commit(s) on `dev`, then run "Promote dev to main" again. The revert ships as a new release. If migration files are reverted, verify down-migrations are safe before promoting.
 
 ## Hotfix
 
 If `dev` has diverged with unrelated work and you need to ship a fix immediately:
 
 1. Branch from `main` directly.
-2. Open a PR targeting `main`.
-3. Merge it — `release.yml` fires automatically and creates a new release.
+2. Open a PR targeting `main`. Merge it manually.
+3. Manually tag the new HEAD of `main` and create a GitHub Release (`git tag -a vYYYY.MM.PATCH -m vYYYY.MM.PATCH && git push origin <tag>` then `gh release create <tag> --generate-notes`).
 4. Back-merge the fix into `dev` to keep branches in sync.
+
+## Required repo settings
+
+These are already configured; documented here so future-you can rebuild if needed:
+
+- **Branch protection on `main`**: require PR (0 approvals needed), no required status checks.
+- **Actions → General → Workflow permissions**: "Allow GitHub Actions to create and approve pull requests" enabled. Without this, the promote workflow can't open its PR.
+- **Labels**: `enhancement`, `bug`, `performance`, `documentation`, `skip-changelog`, `dependencies`.
