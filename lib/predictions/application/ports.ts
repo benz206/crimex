@@ -70,6 +70,25 @@ export type RunPredictionStats = {
   hitRate: number | null;
 };
 
+export type CalibrationBin = {
+  bin: number;
+  n: number;
+  avgPredicted: number;
+  avgActual: number;
+  minPredicted: number;
+  maxPredicted: number;
+};
+
+export type DailyPerformance = {
+  dayMs: number;
+  runs: number;
+  evaluatedPredictions: number;
+  avgScore: number | null;
+  avgBrier: number | null;
+  predictedTotal: number;
+  actualTotal: number;
+};
+
 export type IncidentTypeStats = {
   incidentType: string;
   totalPredictions: number;
@@ -89,6 +108,8 @@ export interface PredictionRepo {
   getPredictions(runId: string): Promise<Prediction[]>;
   getRunPredictionStats(): Promise<RunPredictionStats[]>;
   getIncidentTypeStats(): Promise<IncidentTypeStats[]>;
+  getCalibration(bins?: number): Promise<CalibrationBin[]>;
+  getDailyPerformance(): Promise<DailyPerformance[]>;
   getModelCalibrationData(modelId: string, limit?: number): Promise<ModelCalibrationData>;
   getCachedActuals(runId: string): Promise<ActualIncident[]>;
   cacheActuals(runId: string, incidents: ActualIncident[]): Promise<void>;

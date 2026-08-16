@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CreateRunInput, PredictionRepo, RunPredictionStats, IncidentTypeStats } from "../application/ports";
+import type { CreateRunInput, PredictionRepo, RunPredictionStats, IncidentTypeStats, CalibrationBin, DailyPerformance } from "../application/ports";
 import type { RunStatus, TriggerType, NewPrediction, ActualUpdate, ActualIncident, RunFilters, ModelCalibrationData, ModelStateSnapshot } from "../domain/types";
 
 type PredictionRunRow = {
@@ -255,6 +255,54 @@ export class SupabasePredictionRepo implements PredictionRepo {
       mae: r.mae != null ? Number(r.mae) : null,
       hitRate: r.hit_rate != null ? Number(r.hit_rate) : null,
     }));
+  }
+
+  async getCalibration(bins = 10): Promise<CalibrationBin[]> {
+    const { data, error } = await this.sb.rpc("get_prediction_calibration_v1", {
+      p_bins: bins,
+    });
+    if (error) throw error;
+    return (data ?? []).map(
+      (r: {
+        bin: number;
+        n: number;
+        avg_predicted: number;
+        avg_actual: number;
+        min_predicted: number;
+        max_predicted: number;
+      }) => ({
+        bin: Number(r.bin),
+        n: Number(r.n),
+        avgPredicted: Number(r.avg_predicted),
+        avgActual: Number(r.avg_actual),
+        minPredicted: Number(r.min_predicted),
+        maxPredicted: Number(r.max_predicted),
+      }),
+    );
+  }
+
+  async getDailyPerformance(): Promise<DailyPerformance[]> {
+    const { data, error } = await this.sb.rpc("get_prediction_daily_performance_v1");
+    if (error) throw error;
+    return (data ?? []).map(
+      (r: {
+        day: string;
+        runs: number;
+        evaluated_predictions: number;
+        avg_score: number | null;
+        avg_brier: number | null;
+        predicted_total: number | null;
+        actual_total: number;
+      }) => ({
+        dayMs: Date.parse(`${r.day}T00:00:00Z`),
+        runs: Number(r.runs),
+        evaluatedPredictions: Number(r.evaluated_predictions),
+        avgScore: r.avg_score != null ? Number(r.avg_score) : null,
+        avgBrier: r.avg_brier != null ? Number(r.avg_brier) : null,
+        predictedTotal: r.predicted_total != null ? Number(r.predicted_total) : 0,
+        actualTotal: Number(r.actual_total),
+      }),
+    );
   }
 
   async getModelCalibrationData(modelId: string, limit = 20): Promise<ModelCalibrationData> {
