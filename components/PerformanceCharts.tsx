@@ -162,12 +162,20 @@ export const PredictedVsActualChart = memo(function PredictedVsActualChart({
             </>
           )}
 
-          {daily.map((d, i) => (
-            <g key={d.dayMs}>
-              <circle cx={g.x(i)} cy={g.y(d.predictedTotal)} r={4} fill={SERIES_PREDICTED} stroke="#121214" strokeWidth={2} />
-              <circle cx={g.x(i)} cy={g.y(d.actualTotal)} r={4} fill={SERIES_ACTUAL} stroke="#121214" strokeWidth={2} />
+          {daily.length <= 40 &&
+            daily.map((d, i) => (
+              <g key={d.dayMs}>
+                <circle cx={g.x(i)} cy={g.y(d.predictedTotal)} r={4} fill={SERIES_PREDICTED} stroke="#121214" strokeWidth={2} />
+                <circle cx={g.x(i)} cy={g.y(d.actualTotal)} r={4} fill={SERIES_ACTUAL} stroke="#121214" strokeWidth={2} />
+              </g>
+            ))}
+
+          {hover != null && (
+            <g>
+              <circle cx={g.x(hover)} cy={g.y(daily[hover]!.predictedTotal)} r={4.5} fill={SERIES_PREDICTED} stroke="#121214" strokeWidth={2} />
+              <circle cx={g.x(hover)} cy={g.y(daily[hover]!.actualTotal)} r={4.5} fill={SERIES_ACTUAL} stroke="#121214" strokeWidth={2} />
             </g>
-          ))}
+          )}
 
           {hover != null && (
             <line
