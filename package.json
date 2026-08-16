@@ -12,6 +12,7 @@
     "supabase:link": "supabase link",
     "supabase:push": "supabase db push",
     "supabase:pull": "supabase db pull",
+    "predictions:backfill": "bun scripts/backfill_predictions.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
