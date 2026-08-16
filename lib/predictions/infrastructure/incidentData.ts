@@ -44,6 +44,9 @@ export async function fetchDailyAggregates(opts: {
   }
 }
 
+const normalizeIncidentType = (desc?: string) =>
+  (desc ?? "").trim().toUpperCase() || "UNKNOWN";
+
 const isRoadsideTest = (desc?: string) => {
   const d = (desc ?? "").trim().toUpperCase();
   return d === "ROADSIDE TEST" || d === "ROAD TEST" || d === "ROADTEST";
@@ -68,7 +71,7 @@ function aggregate(features: RawFeature[]): IncidentAggregate[] {
     { count: number; lats: number[]; lngs: number[] }
   >();
   for (const f of features) {
-    const type = f.properties.DESCRIPTION ?? "UNKNOWN";
+    const type = normalizeIncidentType(f.properties.DESCRIPTION);
     const city = f.properties.CITY ?? null;
     const key = `${type}||${city ?? ""}`;
     let g = groups.get(key);
@@ -121,7 +124,7 @@ function aggregateByPeriod(
     }
   >();
   for (const f of features) {
-    const type = f.properties.DESCRIPTION ?? "UNKNOWN";
+    const type = normalizeIncidentType(f.properties.DESCRIPTION);
     const city = f.properties.CITY ?? null;
     const dateMs = f.properties.DATE ?? 0;
     const weekIndex = Math.max(0, Math.floor((dateMs - periodStartMs) / MS_PER_WEEK));
@@ -214,7 +217,7 @@ export class ArcGISIncidentData implements IncidentDataPort {
       const [lng, lat] = f.geometry.coordinates as [number, number];
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
       results.push({
-        incidentType: f.properties.DESCRIPTION ?? "UNKNOWN",
+        incidentType: normalizeIncidentType(f.properties.DESCRIPTION),
         city: f.properties.CITY ?? null,
         lat,
         lng,

@@ -9,6 +9,7 @@ import {
 } from "@/lib/incidentStyle";
 import { memo, useMemo, useState } from "react";
 import { CustomSelect } from "@/components/CustomSelect";
+import { SkeletonCardList } from "@/components/Skeleton";
 
 const SidebarItem = memo(function SidebarItem({
   feature,
@@ -54,9 +55,10 @@ const SidebarItem = memo(function SidebarItem({
 type Props = {
   items: IncidentFeature[];
   onPick: (item: IncidentFeature) => void;
+  loading?: boolean;
 };
 
-export function Sidebar({ items, onPick }: Props) {
+export function Sidebar({ items, onPick, loading = false }: Props) {
   const [sortKey, setSortKey] = useState<
     | "date_desc"
     | "date_asc"
@@ -121,8 +123,15 @@ export function Sidebar({ items, onPick }: Props) {
               Incidents
             </div>
           </div>
-          <div className="shrink-0 rounded-full mb-auto bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
-            {paged.length} of {total} in view
+          <div className="shrink-0 mb-auto inline-flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/80 ring-1 ring-white/10">
+            {loading && (
+              <span className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+            )}
+            <span>
+              {loading && total === 0
+                ? "Loading"
+                : `${paged.length} of ${total} in view`}
+            </span>
           </div>
         </div>
 
@@ -170,15 +179,30 @@ export function Sidebar({ items, onPick }: Props) {
       </div>
       <div className="ui-divider mx-4" />
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-3">
-        <div className="flex flex-col gap-2">
-          {paged.map((f) => (
-            <SidebarItem
-              key={String(f.properties.OBJECTID)}
-              feature={f}
-              onPick={onPick}
-            />
-          ))}
-        </div>
+        {total === 0 ? (
+          loading ? (
+            <SkeletonCardList rows={6} />
+          ) : (
+            <div className="ui-card text-[12px] text-white/60">
+              No incidents in view. Try zooming out or widening the date range.
+            </div>
+          )
+        ) : (
+          <div
+            className={
+              "flex flex-col gap-2 transition-opacity " +
+              (loading ? "opacity-60" : "opacity-100")
+            }
+          >
+            {paged.map((f) => (
+              <SidebarItem
+                key={String(f.properties.OBJECTID)}
+                feature={f}
+                onPick={onPick}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="ui-divider mx-4" />

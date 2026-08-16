@@ -2,6 +2,7 @@
 
 import { memo, useMemo, useState } from "react";
 import { getIncidentStyle } from "@/lib/incidentStyle";
+import { Skeleton, SkeletonCardList } from "@/components/Skeleton";
 
 type PredictionRun = {
   id: string;
@@ -252,8 +253,18 @@ export function PredictionsPanel({
       )}
 
       {!data && loading && (
-        <div className="flex flex-1 items-center justify-center">
-          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-3">
+          <div className="ui-card">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {Array.from({ length: 8 }, (_, i) => (
+                <Skeleton
+                  key={i}
+                  className={"h-2.5 " + (i % 2 === 0 ? "w-16" : "w-24 justify-self-end")}
+                />
+              ))}
+            </div>
+          </div>
+          <SkeletonCardList rows={4} />
         </div>
       )}
 

@@ -47,13 +47,13 @@ function poissonCdf(k: number, lambda: number): number {
 }
 
 function computeMetrics(
-  predictedCount: number,
+  predictedRate: number,
   actualCount: number,
   avgDistKm: number | null,
   hasSpatial: boolean,
 ): { score: number; brierScore: number; logLoss: number; spatialScore: number | null } {
-  const threshold = Math.round(predictedCount);
-  const p = 1 - poissonCdf(threshold - 1, predictedCount);
+  const threshold = Math.max(1, Math.round(predictedRate));
+  const p = 1 - poissonCdf(threshold - 1, predictedRate);
   const actualBinary = actualCount >= threshold ? 1 : 0;
   const brier = (p - actualBinary) ** 2;
   const logLoss = -(
@@ -142,6 +142,7 @@ export async function evaluatePrediction(
     const key = keyOf(p.incidentType, p.city);
     if (updatesByKey.has(key)) continue;
 
+    const lambda = p.predictedRate ?? p.predictedCount;
     const typeActuals = byType.get(p.incidentType) ?? [];
 
     const hasSpatial =
@@ -162,7 +163,7 @@ export async function evaluatePrediction(
       }
       const avgDist = nearby.length > 0 ? distSum / nearby.length : null;
       const c = centroid(nearby);
-      const metrics = computeMetrics(p.predictedCount, nearby.length, avgDist, true);
+      const metrics = computeMetrics(lambda, nearby.length, avgDist, true);
       updatesByKey.set(key, {
         incidentType: p.incidentType,
         city: p.city,
@@ -180,7 +181,7 @@ export async function evaluatePrediction(
           )
         : typeActuals;
       const c = centroid(cityActuals);
-      const metrics = computeMetrics(p.predictedCount, cityActuals.length, null, false);
+      const metrics = computeMetrics(lambda, cityActuals.length, null, false);
       updatesByKey.set(key, {
         incidentType: p.incidentType,
         city: p.city,

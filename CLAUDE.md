@@ -46,16 +46,16 @@ API route handlers all follow the same wiring: read bearer token → build a per
 - Server authed: **must** be per-request via `createAuthedSupabaseClient(token)`, because each user has a different JWT.
 
 ### Cron / scheduled functions
-Four scheduled jobs in `netlify/functions/` call the equivalent Next.js routes:
+Cron is run by **Vercel Cron** (`vercel.json`). To fit the Hobby plan's 2-cron limit, individual jobs are consolidated into two daily orchestrator routes that invoke the underlying handlers in-process:
 
-| Job | Schedule | Endpoint |
-|-----|----------|----------|
-| `incidents-ingest` | every 6h | `GET /api/incidents/ingest` |
-| `markets-auto-seed` | daily 00:15 UTC | `GET /api/markets/auto/seed` |
-| `markets-auto-resolve` | daily 00:30 UTC | `GET /api/markets/auto/resolve-admin` |
-| `predictions-cron` | hourly | `GET /api/predictions/cron` |
+| Job | Schedule | Endpoint | Sub-steps |
+|-----|----------|----------|-----------|
+| `daily` | `15 0 * * *` | `GET /api/cron/daily` | `incidents/ingest` → `markets/auto/generate-seeds` → `markets/auto/seed` → `markets/auto/resolve-admin` |
+| `predictions` | `0 12 * * *` | `GET /api/cron/predictions` | `predictions/cron` (top up to `dailyTarget=100`) → `predictions/evaluate` |
 
-All cron endpoints require `PREDICTIONS_CRON_SECRET` via `x-cron-secret` header, `Authorization: Bearer`, or `?cronSecret=`. Locally, hit them with `curl` (see README for examples).
+Cron auth uses `Authorization: Bearer <secret>`. The secret may be either `CRON_SECRET` (preferred, what Vercel Cron sends automatically) or the legacy `PREDICTIONS_CRON_SECRET`. Locally, hit any cron endpoint with `curl -H "Authorization: Bearer $CRON_SECRET" ...` (see README for examples).
+
+The orchestrators are thin: verify the cron secret once, then import each downstream route's `GET` handler and call it with a forged `Request` carrying the same `Authorization` header. When adding a new cron step, prefer extending an existing orchestrator over adding a third Vercel cron entry (Hobby cap).
 
 ## Conventions
 
@@ -86,7 +86,7 @@ All cron endpoints require `PREDICTIONS_CRON_SECRET` via `x-cron-secret` header,
 Required:
 - `NEXT_PUBLIC_MAPTILER_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-side cron / admin RPCs)
-- `PREDICTIONS_CRON_SECRET`
+- `CRON_SECRET` (preferred; what Vercel Cron sends). `PREDICTIONS_CRON_SECRET` is still honored for backward compat.
 
 Optional (enables auth + Supabase incidents path):
 - `NEXT_PUBLIC_SUPABASE_URL`

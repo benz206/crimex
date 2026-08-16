@@ -25,6 +25,7 @@ type PredictionRow = {
   incident_type: string;
   city: string | null;
   predicted_count: number;
+  predicted_rate: number | null;
   actual_count: number | null;
   confidence: number | null;
   score: number | null;
@@ -134,6 +135,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
       incident_type: p.incidentType,
       city: p.city,
       predicted_count: p.predictedCount,
+      predicted_rate: p.predictedRate,
       confidence: p.confidence,
       lat: p.lat,
       lng: p.lng,
@@ -202,6 +204,7 @@ export class SupabasePredictionRepo implements PredictionRepo {
       incidentType: p.incident_type,
       city: p.city,
       predictedCount: p.predicted_count,
+      predictedRate: p.predicted_rate ?? null,
       actualCount: p.actual_count,
       confidence: p.confidence,
       score: p.score ?? null,

@@ -33,8 +33,10 @@ NEXT_PUBLIC_SUPABASE_URL=your supabase project url (optional)
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your supabase anon key (optional)
 NEXT_PUBLIC_SUPABASE_INCIDENTS=0 or 1 (optional, default 0)
 SUPABASE_SERVICE_ROLE_KEY=your supabase service role key
-PREDICTIONS_CRON_SECRET=your cron secret
+CRON_SECRET=your cron secret
 ```
+
+> The cron-gated endpoints accept either `CRON_SECRET` (Vercel's standard, used by Vercel Cron) or the legacy `PREDICTIONS_CRON_SECRET`. Prefer `CRON_SECRET`.
 
 3. Run the dev server:
 
@@ -65,59 +67,63 @@ If you keep `.github/workflows/supabase-migrate.yml`, set these repo secrets:
 - `SUPABASE_ACCESS_TOKEN`
 - `SUPABASE_PROJECT_REF`
 
-## Deploy (Netlify)
+## Deploy (Vercel)
 
-1. Netlify environment variables (Site settings → Environment variables):
+1. Import the repo into Vercel. The framework auto-detects as Next.js. `vercel.json` declares the cron jobs.
+
+2. Vercel environment variables (Project Settings → Environment Variables):
    - `NEXT_PUBLIC_MAPTILER_KEY`
    - `NEXT_PUBLIC_SUPABASE_URL` (optional)
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (optional)
    - `NEXT_PUBLIC_SUPABASE_INCIDENTS` (optional, set to `1` only if you created the `incidents` table)
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `PREDICTIONS_CRON_SECRET`
+   - `CRON_SECRET` — Vercel Cron sends this automatically as `Authorization: Bearer <CRON_SECRET>` when invoking cron paths.
 
-2. Supabase Auth URL config (Auth → URL Configuration):
-   - **Site URL**: your Netlify site URL (e.g. `https://your-site.netlify.app`)
-   - **Redirect URLs**: add your site URL plus (optionally) your preview URLs if you want auth to work on deploy previews
+3. Supabase Auth URL config (Auth → URL Configuration):
+   - **Site URL**: your Vercel production URL (e.g. `https://your-project.vercel.app` or your custom domain)
+   - **Redirect URLs**: add your site URL plus (optionally) your preview URLs (`https://*-your-team.vercel.app`) for auth on preview deployments.
 
-3. Netlify scheduled functions:
-   - `netlify/functions/predictions-cron.ts` runs hourly and tops up the current UTC day to 100 cron runs
-   - `netlify/functions/predictions-evaluate.ts` runs every hour at `:30` and consolidates expired runs
+4. Cron jobs (declared in `vercel.json`):
+   - `/api/cron/daily` — runs daily at 00:15 UTC. Sequences `ingest → generate-seeds → seed → resolve-admin`.
+   - `/api/cron/predictions` — runs daily at 12:00 UTC. Sequences `predictions/cron → predictions/evaluate`.
+
+   Vercel Cron is gated by `CRON_SECRET`. The orchestrator routes verify it and forward the same `Authorization` header to the downstream `/api/*` routes they invoke in-process.
 
 ## Prediction training and cloud cron
 
-- Model state is now persisted in Supabase via `prediction_model_snapshots`, keyed by `model_id` and `horizon_hours`.
+- Model state is persisted in Supabase via `prediction_model_snapshots`, keyed by `model_id` and `horizon_hours`.
 - Local and production runs share the same stored model state as long as they point at the same Supabase project.
 - `GET` or `POST` `/api/predictions/cron` will top up cloud-generated runs until the current UTC day has `100` cron runs, then consolidate expired runs.
 - `GET` or `POST` `/api/predictions/evaluate` consolidates expired runs without creating new ones.
-- Both endpoints accept cron auth through `x-cron-secret`, `Authorization: Bearer <secret>`, or `?cronSecret=...`.
-- Production scheduled jobs require `SUPABASE_SERVICE_ROLE_KEY` and `PREDICTIONS_CRON_SECRET`.
+- Cron auth is `Authorization: Bearer <secret>`. The secret may be either `CRON_SECRET` (preferred, used by Vercel Cron) or the legacy `PREDICTIONS_CRON_SECRET`.
+- Production scheduled jobs require `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET`.
 
 ### Local examples
 
 ```bash
-curl "http://localhost:3000/api/predictions/cron?cronSecret=$PREDICTIONS_CRON_SECRET&dailyTarget=100"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "http://localhost:3000/api/predictions/cron?dailyTarget=100"
 ```
 
 ```bash
-curl "http://localhost:3000/api/predictions/evaluate?cronSecret=$PREDICTIONS_CRON_SECRET"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "http://localhost:3000/api/predictions/evaluate"
 ```
 
-### Netlify cron
-
-- Netlify scheduled functions are defined in `netlify/functions/predictions-cron.ts` and `netlify/functions/predictions-evaluate.ts`.
-- The scheduled functions call the deployed Next.js routes using `process.env.URL`.
-- If you deploy elsewhere, point any scheduler at the same endpoints and keep the same environment variables in prod.
+```bash
+# Smoke-test the consolidated daily/predictions orchestrators locally
+curl -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3000/api/cron/daily"
+curl -H "Authorization: Bearer $CRON_SECRET" "http://localhost:3000/api/cron/predictions"
+```
 
 ## Daily options pipeline
 
-Four cron jobs drive the automated market lifecycle:
+Two consolidated cron jobs drive the automated lifecycle on Vercel:
 
-| Job | Schedule | Endpoint |
-|-----|----------|----------|
-| `incidents-ingest` | Every 6 hours (`0 */6 * * *`) | `GET /api/incidents/ingest` |
-| `markets-auto-seed` | Daily at 00:15 UTC (`15 0 * * *`) | `GET /api/markets/auto/seed` |
-| `markets-auto-resolve` | Daily at 00:30 UTC (`30 0 * * *`) | `GET /api/markets/auto/resolve-admin` |
-| `predictions-cron` | Hourly | `GET /api/predictions/cron` |
+| Job | Schedule | Endpoint | Steps |
+|-----|----------|----------|-------|
+| `daily` | 00:15 UTC (`15 0 * * *`) | `GET /api/cron/daily` | `incidents/ingest` → `markets/auto/generate-seeds` → `markets/auto/seed` → `markets/auto/resolve-admin` |
+| `predictions` | 12:00 UTC (`0 12 * * *`) | `GET /api/cron/predictions` | `predictions/cron` (top up to `dailyTarget=100`) → `predictions/evaluate` |
 
 ### `market_seeds` table
 
@@ -127,13 +133,16 @@ The `market_seeds` table holds one row per planned prediction market (incident t
 
 ```bash
 # Ingest the last 2 days of ArcGIS incidents into Supabase
-curl "http://localhost:3000/api/incidents/ingest?lookbackDays=2&cronSecret=$PREDICTIONS_CRON_SECRET"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "http://localhost:3000/api/incidents/ingest?lookbackDays=2"
 
 # Seed up to 20 pending market_seeds rows
-curl "http://localhost:3000/api/markets/auto/seed?cronSecret=$PREDICTIONS_CRON_SECRET"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "http://localhost:3000/api/markets/auto/seed"
 
 # Resolve markets whose window has closed
-curl "http://localhost:3000/api/markets/auto/resolve-admin?cronSecret=$PREDICTIONS_CRON_SECRET"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "http://localhost:3000/api/markets/auto/resolve-admin"
 ```
 
 ## Data sources

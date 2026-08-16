@@ -12,11 +12,14 @@ import maplibregl, {
 import {
   Car,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   DoorOpen,
   Home,
   ShieldAlert,
   ShoppingBag,
+  SlidersHorizontal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -266,6 +269,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   };
   const filtersRef = useRef<IncidentFilters>(makeDefaultFilters());
   const [loadingCount, setLoadingCount] = useState(0);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<
     "filters" | "incidents" | "predictions" | null
   >(null);
@@ -273,7 +278,8 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   const [predictionsEnabled, setPredictionsEnabled] = useState(false);
   const predictionsDataRef = useRef<GeoJSON.FeatureCollection | null>(null);
   const [predictionData, setPredictionData] = useState<PredictionData | null>(null);
-  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionLoadCount, setPredictionLoadCount] = useState(0);
+  const predictionLoading = predictionLoadCount > 0;
   const [predictionRuns, setPredictionRuns] = useState<
     Array<{
       id: string;
@@ -1030,7 +1036,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
   }, [heatmapSettings, styleUrl]);
 
   const loadPredictions = useCallback(async (signal?: AbortSignal) => {
-    setPredictionLoading(true);
+    setPredictionLoadCount((c) => c + 1);
     try {
       const runsRes = await fetch("/api/predictions", {
         cache: "no-store",
@@ -1056,7 +1062,6 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       if (runs.length === 0) {
         setPredictionData(null);
         setSelectedPredictionRunId(null);
-        setPredictionLoading(false);
         return;
       }
       const currentRunId = selectedPredictionRunIdRef.current;
@@ -1105,7 +1110,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
       }
     } catch {
     } finally {
-      setPredictionLoading(false);
+      setPredictionLoadCount((c) => Math.max(0, c - 1));
     }
   }, []);
 
@@ -1337,7 +1342,25 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
 
   return (
     <div className="relative h-full w-full">
-      <div className="ui-panel absolute top-3 left-3 right-3 z-10 hidden w-auto max-w-[400px] p-4 md:block md:right-auto md:w-[400px]">
+      {leftCollapsed && (
+        <button
+          type="button"
+          className="ui-panel absolute top-3 left-3 z-10 hidden items-center gap-2 px-3 py-2 text-[13px] font-medium text-white/85 hover:text-white md:inline-flex"
+          onClick={() => setLeftCollapsed(false)}
+          aria-label="Expand filters panel"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span>Filters</span>
+          <ChevronRight className="h-4 w-4 text-white/50" />
+        </button>
+      )}
+
+      <div
+        className={
+          "ui-panel absolute top-3 left-3 right-3 z-10 w-auto max-w-[400px] p-4 md:right-auto md:w-[400px] " +
+          (leftCollapsed ? "hidden" : "hidden md:block")
+        }
+      >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[13px] font-semibold text-white/90">Play the markets</div>
@@ -1352,6 +1375,15 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
             <Link className="ui-btn h-9 px-3 text-[13px]" href="/predictions">
               Predictions
             </Link>
+            <button
+              type="button"
+              className="ui-btn inline-flex h-9 w-9 shrink-0 items-center justify-center p-0"
+              onClick={() => setLeftCollapsed(true)}
+              aria-label="Collapse filters panel"
+              title="Collapse"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
           </div>
         </div>
         <div className="ui-divider mb-3" />
@@ -1366,8 +1398,32 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
         />
       </div>
 
-      <div className="ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 hidden h-[42dvh] w-auto overflow-hidden md:block md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-54px)] md:w-[400px]">
-        <div className="flex border-b border-white/8">
+      {rightCollapsed && (
+        <button
+          type="button"
+          className="ui-panel absolute top-3 right-3 z-10 hidden items-center gap-2 px-3 py-2 text-[13px] font-medium text-white/85 hover:text-white md:inline-flex"
+          onClick={() => setRightCollapsed(false)}
+          aria-label="Expand results panel"
+        >
+          <ChevronLeft className="h-4 w-4 text-white/50" />
+          <span>
+            {rightTab === "incidents"
+              ? `Incidents (${incidents.features.length})`
+              : "Predictions"}
+          </span>
+          {isLoading && rightTab === "incidents" && (
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+          )}
+        </button>
+      )}
+
+      <div
+        className={
+          "ui-panel absolute top-auto right-3 bottom-3 left-3 z-10 h-[42dvh] w-auto overflow-hidden md:top-3 md:right-3 md:bottom-auto md:left-auto md:h-[calc(100%-54px)] md:w-[400px] " +
+          (rightCollapsed ? "hidden" : "hidden md:block")
+        }
+      >
+        <div className="flex items-center border-b border-white/8">
           <button
             type="button"
             className={
@@ -1392,10 +1448,23 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
           >
             Predictions
           </button>
+          <button
+            type="button"
+            className="mr-2 ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white/55 hover:bg-white/10 hover:text-white/85"
+            onClick={() => setRightCollapsed(true)}
+            aria-label="Collapse results panel"
+            title="Collapse"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
         <div className="h-[calc(100%-42px)] overflow-hidden">
           {rightTab === "incidents" ? (
-            <Sidebar items={incidents.features} onPick={flyToIncident} />
+            <Sidebar
+              items={incidents.features}
+              onPick={flyToIncident}
+              loading={isLoading}
+            />
           ) : (
             <PredictionsPanel
               data={predictionData}
@@ -1500,6 +1569,7 @@ export function CrimeMap({ styleId = DEFAULT_STYLE_ID }: Props) {
               <div className="h-full">
                 <Sidebar
                   items={incidents.features}
+                  loading={isLoading}
                   onPick={(f) => {
                     flyToIncident(f);
                     setMobilePanel(null);
