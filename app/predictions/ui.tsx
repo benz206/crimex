@@ -300,7 +300,7 @@ export function PredictionsClient() {
   ]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [runLimit, setRunLimit] = useState(100);
+  const [runLimit, setRunLimit] = useState(5);
   const [stats, setStats] = useState<ConsolidatedStats | null>(null);
   const [showStats, setShowStats] = useState(true);
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -880,6 +880,8 @@ export function PredictionsClient() {
                   value={runLimit}
                   onChange={(e) => setRunLimit(Number(e.target.value))}
                 >
+                  <option value={5}>5</option>
+                  <option value={25}>25</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                   <option value={250}>250</option>
