@@ -32,6 +32,7 @@ export type Prediction = {
   incidentType: string;
   city: string | null;
   predictedCount: number;
+  predictedRate: number | null;
   actualCount: number | null;
   confidence: number | null;
   score: number | null;
@@ -102,12 +103,14 @@ export type PredictInput = {
   windowStartMs: number;
   windowEndMs: number;
   historicalData: IncidentAggregate[];
+  rawIncidents?: ActualIncident[];
 };
 
 export type PredictOutput = {
   incidentType: string;
   city: string | null;
   predictedCount: number;
+  predictedRate?: number | null;
   confidence: number | null;
   lat: number | null;
   lng: number | null;

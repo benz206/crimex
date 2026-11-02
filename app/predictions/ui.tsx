@@ -5,6 +5,12 @@ import { getSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavBar } from "@/components/NavBar";
+import {
+  CalibrationChart,
+  PredictedVsActualChart,
+  type CalibrationPoint,
+  type DailyPoint,
+} from "@/components/PerformanceCharts";
 
 type PredictionRun = {
   id: string;
@@ -106,6 +112,13 @@ type ConsolidatedStats = {
     hitRate: number | null;
     completedAtMs: number | null;
   }>;
+  calibration: CalibrationPoint[];
+  daily: DailyPoint[];
+  pendingEvaluation: {
+    runs: number;
+    predictions: number;
+    nextWindowEndMs: number | null;
+  };
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -235,7 +248,7 @@ const IncidentTypeTable = React.memo(function IncidentTypeTable({
                   {pct(t.avgScore)}
                 </td>
                 <td className="py-1.5 pr-3 text-right text-white/60">
-                  {t.mae != null ? t.mae.toFixed(1) : "—"}
+                  {t.mae != null ? t.mae.toFixed(2) : "—"}
                 </td>
                 <td className="py-1.5 text-right text-white/60">{pct(t.hitRate)}</td>
               </tr>
@@ -287,7 +300,7 @@ export function PredictionsClient() {
   ]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [runLimit, setRunLimit] = useState(100);
+  const [runLimit, setRunLimit] = useState(5);
   const [stats, setStats] = useState<ConsolidatedStats | null>(null);
   const [showStats, setShowStats] = useState(true);
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -545,7 +558,7 @@ export function PredictionsClient() {
           </div>
         )}
 
-        {showStats && stats && stats.evaluatedRuns > 0 && (
+        {showStats && stats && (
           <div className="mt-4 space-y-3">
             <div className="ui-panel p-4">
               <div className="flex items-center justify-between">
@@ -564,13 +577,72 @@ export function PredictionsClient() {
                 <StatCard label="Total Runs" value={String(stats.totalRuns)} />
                 <StatCard label="Evaluated" value={String(stats.evaluatedRuns)} sub={`of ${stats.completedRuns} completed`} />
                 <StatCard label="Predictions" value={String(stats.totalPredictions)} sub={`${stats.evaluatedPredictions} scored`} />
-                <StatCard label="Avg Score" value={pct(stats.overallAvgScore)} />
-                <StatCard label="MAE" value={stats.overallMAE != null ? stats.overallMAE.toFixed(1) : "—"} />
+                <StatCard label="Avg Score" value={pct(stats.overallAvgScore)} sub="1 − Brier" />
+                <StatCard label="MAE" value={stats.overallMAE != null ? stats.overallMAE.toFixed(2) : "—"} />
                 <StatCard label="Hit Rate" value={pct(stats.overallHitRate)} />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {stats.evaluatedRuns === 0 && (
+              <div className="ui-panel p-4">
+                <div className="text-[13px] font-semibold text-white/90">
+                  Nothing scored yet
+                </div>
+                <div className="mt-1.5 text-[11px] leading-4 text-white/60">
+                  A prediction can only be scored after its window closes and the
+                  evaluation job compares it against what actually happened.
+                  {stats.pendingEvaluation.runs > 0 && (
+                    <>
+                      {" "}
+                      <span className="text-white/85">
+                        {stats.pendingEvaluation.runs} run
+                        {stats.pendingEvaluation.runs === 1 ? "" : "s"}
+                      </span>{" "}
+                      ({stats.pendingEvaluation.predictions} predictions) are waiting.
+                    </>
+                  )}
+                  {stats.pendingEvaluation.nextWindowEndMs != null && (
+                    <>
+                      {" "}
+                      The earliest closes{" "}
+                      <span className="text-white/85">
+                        {new Date(stats.pendingEvaluation.nextWindowEndMs).toLocaleString(
+                          "en-CA",
+                          { timeZone: "America/Toronto", dateStyle: "medium", timeStyle: "short" },
+                        )}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="ui-panel p-4">
+              <div className="text-[13px] font-semibold text-white/90">
+                Did the predictions work?
+              </div>
+              <div className="mt-1 text-[11px] leading-4 text-white/55">
+                Total incidents the model expected versus how many actually occurred.
+                Closer lines mean a better-calibrated model.
+              </div>
+              <div className="mt-3">
+                <PredictedVsActualChart daily={stats.daily} />
+              </div>
+            </div>
+
+            <div className="ui-panel p-4">
+              <div className="text-[13px] font-semibold text-white/90">Calibration</div>
+              <div className="mt-3">
+                <CalibrationChart bins={stats.calibration} />
+              </div>
+            </div>
+
+            <div
+              className={
+                "grid grid-cols-1 gap-3 md:grid-cols-2 " +
+                (stats.evaluatedRuns > 0 ? "" : "hidden")
+              }
+            >
               <div className="ui-panel p-4">
                 <div className="text-[12px] font-semibold text-white/85">Score Distribution</div>
                 <div className="mt-3 space-y-2">
@@ -625,7 +697,7 @@ export function PredictionsClient() {
                           </div>
                           <ScoreBar score={m.avgScore} height={8} />
                           <div className="mt-0.5 text-[10px] text-white/35">
-                            {m.runCount} runs • MAE {m.mae?.toFixed(1) ?? "—"} • Hit {pct(m.hitRate)}
+                            {m.runCount} runs • MAE {m.mae?.toFixed(2) ?? "—"} • Hit {pct(m.hitRate)}
                           </div>
                         </div>
                       ))}
@@ -648,7 +720,7 @@ export function PredictionsClient() {
           </div>
         )}
 
-        {!showStats && stats && stats.evaluatedRuns > 0 && (
+        {!showStats && stats && (
           <button
             type="button"
             className="mt-3 text-[11px] text-white/40 hover:text-white/60"
@@ -808,6 +880,8 @@ export function PredictionsClient() {
                   value={runLimit}
                   onChange={(e) => setRunLimit(Number(e.target.value))}
                 >
+                  <option value={5}>5</option>
+                  <option value={25}>25</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                   <option value={250}>250</option>
@@ -849,11 +923,17 @@ export function PredictionsClient() {
                         >
                           {r.status}
                         </span>
-                        {runScore?.avgScore != null && (
+                        {runScore?.avgScore != null ? (
                           <span className={`text-[11px] font-semibold ${scoreTextColor(runScore.avgScore)}`}>
                             {pct(runScore.avgScore)}
                           </span>
-                        )}
+                        ) : r.status === "completed" ? (
+                          <span className="rounded bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
+                            {r.windowEndMs > Date.now()
+                              ? "window open"
+                              : "awaiting evaluation"}
+                          </span>
+                        ) : null}
                       </div>
                       {runScore?.avgScore != null && (
                         <div className="mt-1.5">
@@ -865,7 +945,7 @@ export function PredictionsClient() {
                         {new Date(r.windowStartMs).toLocaleString()} →{" "}
                         {new Date(r.windowEndMs).toLocaleString()}
                         {runScore?.mae != null && (
-                          <> • MAE {runScore.mae.toFixed(1)}</>
+                          <> • MAE {runScore.mae.toFixed(2)}</>
                         )}
                       </div>
                       <div className="mt-1 text-[10px] leading-4 text-white/45">

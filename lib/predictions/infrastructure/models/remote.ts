@@ -16,7 +16,7 @@ export class RemoteTrainedModel implements PredictionModelPort {
 
     const url = `${baseUrl.replace(/\/$/, "")}/predict`;
     console.log(
-      `[RemoteTrainedModel] → POST ${url} h=${input.horizonHours}h rows=${input.historicalData.length}`,
+      `[RemoteTrainedModel] → POST ${url} h=${input.horizonHours}h rows=${input.historicalData.length} raw=${input.rawIncidents?.length ?? 0}`,
     );
     const res = await fetch(url, {
       method: "POST",
@@ -29,6 +29,7 @@ export class RemoteTrainedModel implements PredictionModelPort {
         windowStartMs: input.windowStartMs,
         windowEndMs: input.windowEndMs,
         historicalData: input.historicalData,
+        rawIncidents: input.rawIncidents ?? [],
       }),
     });
 

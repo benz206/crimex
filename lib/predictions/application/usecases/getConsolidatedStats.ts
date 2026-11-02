@@ -1,4 +1,9 @@
-import type { PredictionRepo, RunPredictionStats } from "../ports";
+import type {
+  PredictionRepo,
+  RunPredictionStats,
+  CalibrationBin,
+  DailyPerformance,
+} from "../ports";
 import type { PredictionRun } from "../../domain/types";
 
 export type ConsolidatedStats = {
@@ -41,16 +46,23 @@ export type ConsolidatedStats = {
     hitRate: number | null;
     completedAtMs: number | null;
   }>;
+  calibration: CalibrationBin[];
+  daily: DailyPerformance[];
+  pendingEvaluation: {
+    runs: number;
+    predictions: number;
+    nextWindowEndMs: number | null;
+  };
 };
 
-function computeOverall(stats: RunPredictionStats[]) {
+function computeOverall(all: RunPredictionStats[], stats: RunPredictionStats[]) {
   const withScores = stats.filter((s) => s.avgScore != null);
   const withMAE = stats.filter((s) => s.mae != null);
   const withHitRate = stats.filter((s) => s.hitRate != null);
 
   return {
-    totalPredictions: stats.reduce((s, r) => s + r.totalPredictions, 0),
-    evaluatedPredictions: stats.reduce((s, r) => s + r.evaluatedPredictions, 0),
+    totalPredictions: all.reduce((s, r) => s + r.totalPredictions, 0),
+    evaluatedPredictions: all.reduce((s, r) => s + r.evaluatedPredictions, 0),
     overallAvgScore:
       withScores.length > 0
         ? withScores.reduce((s, r) => s + r.avgScore!, 0) / withScores.length
@@ -118,16 +130,18 @@ function computeByModel(
 export async function getConsolidatedStats(deps: {
   predictionRepo: PredictionRepo;
 }): Promise<ConsolidatedStats> {
-  const [runs, runStats, typeStats] = await Promise.all([
+  const [runs, runStats, typeStats, calibration, daily] = await Promise.all([
     deps.predictionRepo.listRuns(),
     deps.predictionRepo.getRunPredictionStats(),
     deps.predictionRepo.getIncidentTypeStats(),
+    deps.predictionRepo.getCalibration(),
+    deps.predictionRepo.getDailyPerformance(),
   ]);
 
   const completedRuns = runs.filter((r) => r.status === "completed");
   const statsMap = new Map(runStats.map((s) => [s.runId, s]));
   const evaluatedStats = runStats.filter((s) => s.evaluatedPredictions > 0);
-  const overall = computeOverall(evaluatedStats);
+  const overall = computeOverall(runStats, evaluatedStats);
   const scoreDistribution = computeScoreDistribution(evaluatedStats);
   const byModel = computeByModel(runs, statsMap);
   const byIncidentType: ConsolidatedStats["byIncidentType"] = typeStats
@@ -149,6 +163,16 @@ export async function getConsolidatedStats(deps: {
     };
   });
 
+  const nowMs = Date.now();
+  const awaiting = completedRuns.filter((r) => {
+    const s = statsMap.get(r.id);
+    return (s?.evaluatedPredictions ?? 0) === 0;
+  });
+  const openWindowEnds = awaiting
+    .map((r) => r.windowEndMs)
+    .filter((ms) => ms > nowMs)
+    .sort((a, b) => a - b);
+
   return {
     totalRuns: runs.length,
     completedRuns: completedRuns.length,
@@ -158,5 +182,15 @@ export async function getConsolidatedStats(deps: {
     byModel,
     byIncidentType,
     recentRunScores,
+    calibration,
+    daily,
+    pendingEvaluation: {
+      runs: awaiting.length,
+      predictions: awaiting.reduce(
+        (sum, r) => sum + (statsMap.get(r.id)?.totalPredictions ?? 0),
+        0,
+      ),
+      nextWindowEndMs: openWindowEnds[0] ?? null,
+    },
   };
 }

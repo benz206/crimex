@@ -10,7 +10,7 @@
    - Opens a PR from `dev` → `main` and squash-merges it.
    - Resets `dev` to match the new `main`.
    - Tags the squash commit on `main` and creates a GitHub Release with auto-generated notes.
-4. Netlify detects the push to `main` and deploys the new build.
+4. Vercel detects the push to `main` and deploys the new build.
 5. If the push touches `supabase/migrations/`, `supabase-migrate.yml` runs and applies migrations.
 
 ## Versioning
@@ -35,7 +35,7 @@ Label PRs before merging so the GitHub Release groups changes correctly:
 
 ## Rollback
 
-**Option A — Netlify dashboard:** Trigger a redeploy of the previous successful deploy. Instant, no git changes.
+**Option A — Vercel dashboard:** Open the project's Deployments tab and promote the previous successful production deploy. Instant, no git changes.
 
 **Option B — Revert via dev:** Revert the relevant commit(s) on `dev`, then run "Promote dev to main" again. The revert ships as a new release. If migration files are reverted, verify down-migrations are safe before promoting.
 

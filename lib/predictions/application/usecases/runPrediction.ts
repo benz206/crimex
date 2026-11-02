@@ -126,13 +126,22 @@ export async function runPrediction(
       dayOfWeek: windowStart.getUTCDay(),
       weeksBack,
     });
-    const historicalData = await deps.incidentData.fetchHistorical({
-      hourOfDay: windowStart.getUTCHours(),
-      dayOfWeek: windowStart.getUTCDay(),
-      weeksBack,
-      excludeRoadsideTests: input.excludeRoadsideTests ?? true,
-    });
-    log.info(`historical rows fetched: ${historicalData.length}`);
+    const [historicalData, rawIncidents] = await Promise.all([
+      deps.incidentData.fetchHistorical({
+        hourOfDay: windowStart.getUTCHours(),
+        dayOfWeek: windowStart.getUTCDay(),
+        weeksBack,
+        excludeRoadsideTests: input.excludeRoadsideTests ?? true,
+      }),
+      deps.incidentData.fetchActualRaw({
+        windowStartMs: windowStartMs - weeksBack * 7 * 24 * 60 * 60 * 1000,
+        windowEndMs: windowStartMs,
+        excludeRoadsideTests: input.excludeRoadsideTests ?? true,
+      }),
+    ]);
+    log.info(
+      `historical rows fetched: ${historicalData.length}, raw incidents: ${rawIncidents.length}`,
+    );
 
     if (isStateful) {
       try {
@@ -204,6 +213,7 @@ export async function runPrediction(
       windowStartMs,
       windowEndMs,
       historicalData,
+      rawIncidents,
     });
     log.info(`model produced ${rawOutputs.length} raw output(s)`);
 
@@ -212,14 +222,15 @@ export async function runPrediction(
       .map((o) => {
         const confidence = o.confidence ?? 0.5;
         const penaltyMultiplier = Math.max(0, 1 - punishment * (1 - confidence));
-        const penalizedCount = Math.round(o.predictedCount * penaltyMultiplier);
+        const rate = (o.predictedRate ?? o.predictedCount) * penaltyMultiplier;
         return {
           ...o,
-          predictedCount: penalizedCount,
+          predictedCount: Math.round(o.predictedCount * penaltyMultiplier),
+          predictedRate: rate,
           confidence: Math.max(0, Math.min(1, confidence * (1 - punishment * 0.5))),
         };
       })
-      .filter((o) => o.predictedCount > 0);
+      .filter((o) => o.predictedRate > 0);
     log.info(`after punishment(${punishment}) filter: ${outputs.length} prediction(s)`);
 
     log.phase("inserting predictions");
@@ -230,6 +241,7 @@ export async function runPrediction(
         incidentType: o.incidentType,
         city: o.city,
         predictedCount: o.predictedCount,
+        predictedRate: o.predictedRate,
         confidence: o.confidence,
         lat: o.lat,
         lng: o.lng,
